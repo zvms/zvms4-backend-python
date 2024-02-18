@@ -18,9 +18,9 @@ class UserPosition(str, Enum):
     system = "system"
 
 
-class WithPassword[T]:
-    password: str
-    data: T
+# class WithPassword[T]:
+#     password: str
+#     data: T
 
 
 class UserLogin(BaseModel):

@@ -471,6 +471,6 @@ hsv.npy
 
 *.pem
 *.key
-*.txt
+aes_key.txt
 
 settings.py
