@@ -2,17 +2,17 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from h11 import Data
 from models.user import User
-from jose import JWTError, jwt
+import jwt
 from typing import Optional
 from datetime import datetime, timezone
 from database import db
 from bson import ObjectId
 import settings
-
+from util.cert import jwt_decode
 
 
 # jwt 相关配置
-SECRET_KEY = settings.SECRET_KEY
+SECRET_KEY = open("aes_key.txt", "r").read()
 ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -61,25 +61,32 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 
     try:
         # 解码 JWT
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        oid: str = payload.get("id", None)
-        password: str = payload.get("password", None)
+        print(token)
+        payload = jwt_decode(token)
+        print(payload)
+        oid: str = payload.get("sub", None)
         exp: int = payload.get("exp", None)
+        salt: str = payload.get("salt", None)
+
+        print(payload)
 
         # 验证 JWT 是否完整
-        if oid is None or password is None or exp is None:
+        if oid is None or exp is None or salt is None:
             raise credentials_exception
-        
+
         # 验证 JWT 是否过期
         if exp is not None and datetime.utcnow() >= datetime.fromtimestamp(exp):
             raise credentials_exception
-    except JWTError:
+    except jwt.PyJWTError:
         raise credentials_exception
-    
-    user = authenticate_user(oid=oid, password=password)
+
+    user = {
+        "id": oid,
+        "per": payload.get("per", None),
+    }
     if user is None:
         raise credentials_exception
-    return await user
+    return user
 
 
 async def timestamp_change(date_string: str):

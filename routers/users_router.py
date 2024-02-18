@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from typing import List
 
 from pydantic import BaseModel
+from util.cases import kebab_case_to_camel_case
 from util.response import generate_response
 from utils import get_current_user, timestamp_change, validate_object_id
 from datetime import datetime, timedelta
@@ -27,18 +28,6 @@ async def auth_user(auth: AuthUser):
     id = auth.id
     mode = auth.mode
     credential = auth.credential
-    """
-    参数示例    值                           说明
-    id          65c7717187cc3be878860b46    用户 UUID
-    mode        short                       认证时段
-    credential  D111C7215FC8F51F            用户密码 (md5 测试用)
-    """
-    # 创建一个包含用户信息的负载
-    # payload = {
-    #     "id": id,
-    #     "password": credential,
-    #     "exp": datetime.utcnow() + timedelta(minutes = 60)
-    # }
 
     result = await validate_by_cert(id, credential)
 
@@ -46,8 +35,10 @@ async def auth_user(auth: AuthUser):
     # token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
     # 将 JWT 作为响应返回
+    print(result)
     return {
-        "access_token": result,
+        "token": result,
+        "_id": id,
     }
 
 
@@ -61,7 +52,7 @@ async def change_password(
     """
     # 验证用户权限, 仅管理员可修改他人密码
     print(user)
-    if user["permission"] < 16 and user["_id"] != validate_object_id(user_oid):
+    if "admin" not in user["per"] and user["id"] != validate_object_id(user_oid):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 修改用户密码
@@ -81,7 +72,7 @@ async def change_permission(
     position    16                          用户新权限等级
     """
     # 验证用户权限, 仅管理员可修改他人权限
-    if user["permission"] < 16:
+    if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 修改用户权限
@@ -115,6 +106,7 @@ async def read_users(query: str):
         )
         if query in user["name"] or query in str(user["id"]):
             user["_id"] = str(user["_id"])
+            user["password"] = ""
             query_result.append(user)
 
     # 返回用户列表, 排除密码
@@ -134,6 +126,7 @@ async def read_user(user_oid: str):
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
 
     user["_id"] = str(user["_id"])
+    user["password"] = ""
     # 返回用户信息, 排除密码
     return {
         "status": "ok",
@@ -152,7 +145,8 @@ async def read_user_activity(
     返回用户义工列表
     """
     # 验证用户权限, 仅管理员可查看他人义工
-    if user["permission"] < 16 and user["_id"] != validate_object_id(user_oid):
+    print(user, user["id"])
+    if "admin" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 读取用户义工列表
@@ -167,7 +161,7 @@ async def read_user_activity(
                 ret.append(activity)
                 _flag = True
                 break
-        if not registration and not _flag:
+        if not registration and not _flag and "registration" in activity:
             # 义工状态可报名
             if activity["status"] == "effective" and await timestamp_change(
                 activity["registration"]["deadline"]
@@ -205,22 +199,27 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
     返回用户义工时长
     """
     # 验证用户权限, 仅管理员可查看他人时长
-    if user["permission"] < 16 and user["_id"] != validate_object_id(user_oid):
+    if "admin" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 读取用户义工时长
     user_activity = await read_user_activity(user_oid, False, user)
 
     # 计算用户义工时长
-    ret = {"on-campus": 0, "off-campus": 0, "social-practice": 0, "award": 0}
+    ret = {"onCampus": 0, "offCampus": 0, "socialPractice": 0, "trophy": 0}
 
     for activity in user_activity:
         for i in activity["members"]:
             if i["_id"] == user_oid and i["status"] == "effective":
-                ret[i["mode"]] += activity["duration"]
+                mode = kebab_case_to_camel_case(i["mode"])
+                ret[mode] += i["duration"]
                 break
 
-    return ret
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": ret,
+    }
 
 
 @router.get("/notification")
@@ -233,7 +232,7 @@ async def read_notifications(user=Depends(get_current_user)):
 
     # 验证是否是 recievers
     for i in range(len(result)):
-        if (user["_id"] not in result[i]["receivers"]) and result[i]["global"] == False:
+        if (user["id"] not in result[i]["receivers"]) and result[i]["global"] == False:
             result.pop(i)
 
     return result

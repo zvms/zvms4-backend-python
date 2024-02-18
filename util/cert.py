@@ -9,6 +9,7 @@ from database import db
 from bson import ObjectId
 from bcrypt import checkpw
 from Crypto.Hash import SHA256
+import random
 
 
 class Auth:
@@ -41,15 +42,19 @@ def rsa_decrypt(ciphertext):
     return decrypt_text.decode("utf8")
 
 
-def jwt_encode(id: str):
+def jwt_encode(id: str, permissions: list[str]):
     payload = {
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(seconds=60),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=15),
         "iat": datetime.datetime.utcnow(),
         "sub": id,
         "scope": "access_token",
         "type": "long-term",
+        "per": permissions,
+        "salt": random.randint(0, 2**31 - 1).to_bytes(4, "big").hex(),
     }
-    return jwt.encode(payload, jwt_private_key, algorithm="HS256")
+    result = jwt.encode(payload, jwt_private_key, algorithm="HS256")
+    print(jwt_decode(result))
+    return result
 
 
 def jwt_decode(token):
@@ -63,14 +68,16 @@ async def validate_by_cert(id: str, cert: str):
     if time < datetime.datetime.now().timestamp() - 60:
         print(time, datetime.datetime.now().timestamp() - 60)
         raise HTTPException(status_code=401, detail="Token expired")
-
-    if await checkpwd(id, auth_field["password"]):
-        raise HTTPException(status_code=401, detail="Password incorrect")
-
-    return jwt_encode(id)
+    user = await db.zvms.users.find_one({"_id": ObjectId(id)})
+    print(user, auth_field["password"], checkpw(bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")))
+    if checkpw(
+        bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")
+    ):
+        return jwt_encode(id, user["position"])
+    raise HTTPException(status_code=401, detail="Password incorrect")
 
 async def checkpwd(id: str, pwd: str):
     user = await db.zvms.users.find_one({"_id": ObjectId(id)})
-    if checkpw(bytes(pwd, 'utf-8'), bytes(user['password'], 'utf-8')):
+    if checkpw(bytes(pwd, "utf-8"), bytes(user["password"], "utf-8")):
         return True
     return False

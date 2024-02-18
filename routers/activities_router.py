@@ -77,10 +77,10 @@ async def change_activity_description(
     # PUT 请求无需返回值
 
 
-@router.put('/{activity_oid}/title')
+@router.put('/{activity_oid}/name')
 async def change_activity_title(
         activity_oid: str,
-        title: str = Form(...),
+        name: str = Form(...),
         user = Depends(get_current_user)
     ):
     """
@@ -95,7 +95,7 @@ async def change_activity_title(
     # 修改义工标题
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid)},
-        {"$set": {"name": title, "updatedAt": int(datetime.now().timestamp())}}
+        {"$set": {"name": name, "updatedAt": int(datetime.now().timestamp())}}
     )
 
     # PUT 请求无需返回值
@@ -137,9 +137,10 @@ async def read_activities(
 
     # 读取义工列表
     cursor = db.zvms.activities.find()
-    activities = await cursor.to_list(length=1000)
+    activities = await cursor.to_list(length=1500)
     result = list()
     for activity in activities:
+        activity["_id"] = str(activity["_id"])
         if (type is None or activity["type"] == type) and \
            (range is None or range[0] <= activity["date"] <= range[1]) and \
            (mode is None or activity["status"] == mode):
@@ -148,7 +149,11 @@ async def read_activities(
                 if isinstance(activity[key], ObjectId):
                     activity[key] = str(activity[key])
             result.append(activity)
-    return result
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": result
+    }
 
 
 @router.get('/{activity_oid}')
@@ -168,7 +173,11 @@ async def read_activity(
     for key in activity:
         if isinstance(activity[key], ObjectId):
             activity[key] = str(activity[key])
-    return activity
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": activity
+    }
 
 
 @router.post("/{activity_oid}/member")
