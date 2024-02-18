@@ -190,7 +190,11 @@ async def read_user_activity(
                     convert_objectid_to_str(item)
 
     convert_objectid_to_str(ret)
-    return ret
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": ret,
+    }
 
 
 @router.get("/{user_oid}/time")
@@ -203,7 +207,7 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 读取用户义工时长
-    user_activity = await read_user_activity(user_oid, False, user)
+    user_activity = (await read_user_activity(user_oid, False, user))['data']
 
     # 计算用户义工时长
     ret = {"onCampus": 0, "offCampus": 0, "socialPractice": 0, "trophy": 0}
