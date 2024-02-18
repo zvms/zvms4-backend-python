@@ -166,7 +166,7 @@ async def read_activities(
                 result.append(activity)
         return {"status": "ok", "code": 200, "data": result}
     elif mode == "class":
-        result = await get_activities_related_to_user(user["_id"])
+        result = await get_activities_related_to_user(user["id"])
         return {"status": "ok", "code": 200, "data": result}
 
 

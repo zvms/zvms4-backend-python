@@ -7,9 +7,19 @@ def get_classid_by_code(code: int):
     if len(str(code)) == 7:
         codeid = '0' + str(code)
 
+    print(codeid)
+
+    if len(codeid) != 8:
+        return None
+
     typeid = codeid[0:2]
     gradeid = codeid[2:4]
     classid = codeid[4:6]
+
+    print(typeid, gradeid, classid)
+
+    if gradeid == '00' or classid == '00':
+        return None
 
     if typeid == '09':
         return 200000 + int(gradeid) * 100 + int(classid)
@@ -46,10 +56,10 @@ async def get_activities_related_to_user(user_oid: str):
     for activity in activities:
         activity['_id'] = str(activity['_id'])
         flag_ = False
-        if activity['publisher'] == user_oid:
+        if activity['creator'] == user_oid:
             flag_ = True
         for member in activity['members']:
-            member_class = get_classid_by_user_id(member['id'])
+            member_class = get_classid_by_user_id(member['_id'])
             if member_class == classid:
                 flag_ = True
                 break
