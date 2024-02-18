@@ -31,7 +31,7 @@ async def get_cert():
     return {
         "status": "ok",
         "code": 200,
-        "data": open('./util/rsa_public_key.pem', 'r').read()
+        "data": open('./rsa_public_key.pem', 'r').read()
     }
 
 if __name__ == "__main__":

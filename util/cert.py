@@ -56,20 +56,21 @@ def jwt_decode(token):
     return jwt.decode(token, jwt_private_key, algorithms=["HS256"], verify=True)
 
 
-def validate_by_cert(id: str, cert: str):
+async def validate_by_cert(id: str, cert: str):
     auth_field = json.loads(rsa_decrypt(cert))
     time = auth_field["time"]
     # in a minute
-    if time > datetime.datetime.now().timestamp() + 60:
+    if time < datetime.datetime.now().timestamp() - 60:
+        print(time, datetime.datetime.now().timestamp() - 60)
         raise HTTPException(status_code=401, detail="Token expired")
 
-    if checkpwd(id, auth_field["password"]):
+    if await checkpwd(id, auth_field["password"]):
         raise HTTPException(status_code=401, detail="Password incorrect")
 
     return jwt_encode(id)
 
-def checkpwd(id: str, pwd: str):
-    user = db.zvms.users.find_one({"_id": ObjectId(id)})
-    if checkpw(bytes(pwd, 'utf-8'), user.get('password')):
+async def checkpwd(id: str, pwd: str):
+    user = await db.zvms.users.find_one({"_id": ObjectId(id)})
+    if checkpw(bytes(pwd, 'utf-8'), bytes(user['password'], 'utf-8')):
         return True
     return False

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from typing import List
 
 from pydantic import BaseModel
+from util.response import generate_response
 from utils import get_current_user, timestamp_change, validate_object_id
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
@@ -12,6 +13,7 @@ from util.cert import validate_by_cert
 
 router = APIRouter()
 
+
 class AuthUser(BaseModel):
     id: str
     mode: str
@@ -19,9 +21,7 @@ class AuthUser(BaseModel):
 
 
 @router.post("/auth")
-async def auth_user(
-    auth: AuthUser
-):
+async def auth_user(auth: AuthUser):
     print(auth)
     print(auth.id, auth.mode, auth.credential)
     id = auth.id
@@ -40,7 +40,7 @@ async def auth_user(
     #     "exp": datetime.utcnow() + timedelta(minutes = 60)
     # }
 
-    result = validate_by_cert(id, credential)
+    result = await validate_by_cert(id, credential)
 
     # 使用一个秘密密钥对负载进行签名，创建 JWT
     # token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
@@ -92,20 +92,54 @@ async def change_permission(
     # PUT 请求无需返回值
 
 
+@router.get("")
+async def read_users(query: str):
+    """
+    返回用户列表
+    """
+    # 读取用户列表
+    result = await db.zvms["users"].find().to_list(3000)
+
+    print(result)
+    print(query, type(query))
+
+    query_result = []
+
+    for user in result:
+        print(
+            user["name"],
+            user["id"],
+            query,
+            query in user["name"],
+            query in str(user["id"]),
+        )
+        if query in user["name"] or query in str(user["id"]):
+            user["_id"] = str(user["_id"])
+            query_result.append(user)
+
+    # 返回用户列表, 排除密码
+    return {"status": "ok", "code": 200, "data": query_result}
+
+
 @router.get("/{user_oid}")
-async def read_user(user_oid: str, user=Depends(get_current_user)):
+async def read_user(user_oid: str):
     """
     返回用户信息
     """
-    # 验证用户权限, 仅管理员可查看他人信息
-    if user["permission"] < 16 and user["_id"] != validate_object_id(user_oid):
-        raise HTTPException(status_code=403, detail="Permission denied")
+    # # 验证用户权限, 仅管理员可查看他人信息
+    # if user["permission"] < 16 and user["_id"] != validate_object_id(user_oid):
+    #     raise HTTPException(status_code=403, detail="Permission denied")
 
     # 读取用户信息
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
 
+    user["_id"] = str(user["_id"])
     # 返回用户信息, 排除密码
-    return {k: v for k, v in user.items() if k != "password_hashed"}
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": user,
+    }
 
 
 @router.get("/{user_oid}/activity")

@@ -468,3 +468,9 @@ hue.py
 heu.py
 hsv.txt
 hsv.npy
+
+*.pem
+*.key
+*.txt
+
+settings.py
