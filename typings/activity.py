@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from typing import Optional
+from pydantic import BaseModel, Field
 from bson import ObjectId
 from enum import Enum
 
@@ -28,12 +29,12 @@ class ActivityMemberHistory(BaseModel):
     impression: str
     duration: float
     time: str  # ISO 8601
-    actioner: ObjectId | str
+    actioner: str
     action: MemberActivityStatus
 
 
 class ActivityMember(BaseModel):
-    _id: ObjectId | str
+    id: str = Field(..., alias='_id')
     status: MemberActivityStatus
     impression: str
     mode: ActivityMode
@@ -43,7 +44,7 @@ class ActivityMember(BaseModel):
 
 
 class ClassRegistration(BaseModel):
-    classid: str
+    classid: int
     max: int
     min: int | None = None
 
@@ -77,16 +78,16 @@ class Special(BaseModel):
 
 
 class Activity(BaseModel):
-    _id: ObjectId | str
+    _id: str
     type: ActivityType
     name: str
     description: str
     members: list[ActivityMember]
-    regiration: Registration | None = None
+    registration: Optional[Registration | None] = None
     date: str  # ISO 8601
     createdAt: str  # ISO 8601
     updatedAt: str  # ISO 8601
-    creator: ObjectId | str
+    creator: str
     status: ActivityStatus
-    url: str | None = None
-    special: Special | None = None
+    url: Optional[str | None] = None
+    special: Optional[Special | None] = None

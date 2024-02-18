@@ -1,3 +1,9 @@
+from typings.activity import (
+    Activity,
+    ActivityStatus,
+    ActivityType,
+    SpecialActivityClassify,
+)
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from typing import List
@@ -13,45 +19,80 @@ import settings
 router = APIRouter()
 
 
-@router.post("/")
-async def create_activity(request: Request, user=Depends(get_current_user)):
+@router.post("")
+async def create_activity(payload: Activity, user=Depends(get_current_user)):
     """
     创建义工
     """
-    payload = await request.json()
-    activity_info = {
-        "type": payload["type"],
-        "name": payload["name"],
-        "description": payload["description"],
-        "date": await timestamp_change(payload["date"]),
-        "members": list(),
-        "createdAt": int(datetime.now().timestamp()),
-        "updatedAt": int(datetime.now().timestamp()),
-        "creator": validate_object_id(user["_id"]),
-        "status": payload["status"],
-        "registration": payload["registration"],
-        "special": payload["special"],
-    }
 
-    # 用户权限检查
-    if activity_info["special"] == "other" and user["permission"] < 2:
+    # remove _id
+
+    none_permission = len(user["per"]) == 1 and "student" in user["per"]
+    only_secretary = (
+        len(user["per"]) == 2
+        and "secretary" in user["per"]
+        and "student" in user["per"]
+    )
+
+    payload.creator = user["id"]
+
+    if payload.type == ActivityType.special and payload.special is None:
+        raise HTTPException(
+            status_code=400, detail="Special activity must have a classify"
+        )
+
+    if payload.type == ActivityType.specified and payload.registration is None:
+        raise HTTPException(
+            status_code=400, detail="Specified activity must have a registration"
+        )
+
+    if (
+        none_permission
+        and payload.type == ActivityType.social
+        or payload.type == ActivityType.scale
+    ):
+        payload.status = ActivityStatus.pending
+    elif (
+        none_permission
+        and payload.type == ActivityType.specified
+        or payload.type == ActivityType.special
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    elif (
+        only_secretary
+        and payload.type == ActivityType.social
+        or payload.type == ActivityType.scale
+    ):
+        payload.status = ActivityStatus.effective
+    elif only_secretary and payload.type == ActivityType.specified:
+        payload.status = ActivityStatus.pending
+    elif only_secretary and payload.type == ActivityType.special:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    elif (
+        "admin" not in user["per"]
+        and payload.type == ActivityType.special
+        and payload.special is not None
+        and payload.special.classify is not None
+        and payload.special.classify == SpecialActivityClassify.import_
+    ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    if activity_info["special"] == "prize" and user["permission"] < 4:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    diction = payload.dict()
 
-    if activity_info["special"] == "club" and user["permission"] < 4:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    members = diction["members"]
 
-    if activity_info["special"] == "deduction" and user["permission"] < 8:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    for member in members:
+        member["_id"] = member["id"]
+        del member["id"]
 
-    if activity_info["special"] == "import" and user["permission"] < 16:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    diction["members"] = members
 
-    # 返回创建的 ObjectID
-    result = await db.zvms.activities.insert_one(activity_info)
-    return {"id": str(result.inserted_id)}
+    # Crezate activity
+    result = await db.zvms.activities.insert_one(diction)
+
+    id = result.inserted_id
+
+    return {"status": "ok", "code": 201, "data": str(id)}
 
 
 @router.put("/{activity_oid}/description")
@@ -62,9 +103,7 @@ async def change_activity_description(
     修改义工描述
     """
     # 用户权限检查
-    if user["permission"] < 2:
-        raise HTTPException(status_code=403, detail="Permission denied")
-    if user["_id"] != validate_object_id(activity_oid) and user["permission"] < 16:
+    if user["_id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 修改义工描述
@@ -78,7 +117,10 @@ async def change_activity_description(
         },
     )
 
-    # PUT 请求无需返回值
+    return {
+        "status": "ok",
+        "code": 200,
+    }
 
 
 @router.put("/{activity_oid}/name")
@@ -89,9 +131,7 @@ async def change_activity_title(
     修改义工标题
     """
     # 用户权限检查
-    if user["permission"] < 2:
-        raise HTTPException(status_code=403, detail="Permission denied")
-    if user["_id"] != validate_object_id(activity_oid) and user["permission"] < 16:
+    if user["_id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 修改义工标题
@@ -100,7 +140,10 @@ async def change_activity_title(
         {"$set": {"name": name, "updatedAt": int(datetime.now().timestamp())}},
     )
 
-    # PUT 请求无需返回值
+    return {
+        "status": "ok",
+        "code": 200,
+    }
 
 
 @router.put("/{activity_oid}/status")
@@ -110,10 +153,23 @@ async def change_activity_status(
     """
     修改义工状态
     """
+
+    target_activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid)}
+    )
     # 用户权限检查
-    if user["permission"] < 2:
+    if (
+        "secretary" not in user["per"]
+        and "department" not in user["per"]
+        and "admin" not in user["per"]
+        and (target_activity["type"] == "social" or target_activity["type"] == "scale")
+    ):
         raise HTTPException(status_code=403, detail="Permission denied")
-    if user["_id"] != validate_object_id(activity_oid) and user["permission"] < 16:
+    if (
+        "department" not in user["per"]
+        and "admin" not in user["per"]
+        and (target_activity["type"] == "specified")
+    ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 修改义工状态
@@ -122,7 +178,10 @@ async def change_activity_status(
         {"$set": {"status": status, "updatedAt": int(datetime.now().timestamp())}},
     )
 
-    # PUT 请求无需返回值
+    return {
+        "status": "ok",
+        "code": 200,
+    }
 
 
 @router.get("")
