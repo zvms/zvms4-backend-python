@@ -2,6 +2,7 @@ from typings.activity import (
     Activity,
     ActivityStatus,
     ActivityType,
+    MemberActivityStatus,
     SpecialActivityClassify,
 )
 from bson import ObjectId
@@ -103,7 +104,7 @@ async def change_activity_description(
     修改义工描述
     """
     # 用户权限检查
-    if user["_id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
+    if user["id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 修改义工描述
@@ -131,7 +132,7 @@ async def change_activity_title(
     修改义工标题
     """
     # 用户权限检查
-    if user["_id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
+    if user["id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 修改义工标题
@@ -284,7 +285,7 @@ async def user_activity_signup(activity_oid: str, user=Depends(get_current_user)
         {
             "$addToSet": {
                 "members": {
-                    "_id": str(user["_id"]),
+                    "_id": str(user["id"]),
                     "status": "draft",
                     "impression": "",
                     "mode": "on-campus",  # TODO: Need to be fixed
@@ -310,37 +311,46 @@ async def user_activity_signoff(
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
-    if not any(member["_id"] == str(user["_id"]) for member in activity["members"]):
+    if not any(member["_id"] == str(user["id"]) for member in activity["members"]):
         raise HTTPException(
             status_code=403, detail="Permission denied, not in activity."
         )
 
     # 权限检查
-    if user["_id"] != validate_object_id(uid) and user["permission"] < 16:
+    if user["id"] != str(validate_object_id(uid)) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 义工删除 mongodb 操作
     members = activity["members"]
-    members = [member for member in members if member["_id"] != str(user["_id"])]
+    members = [member for member in members if member["_id"] != str(user["id"])]
 
     # 更新数据库中的文档
     result = await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid)}, {"$set": {"members": members}}
     )
 
-    # DELETE 请求无需返回值
+    return {
+        "status": "ok",
+        "code": 200,
+    }
+
+
+class PutImpression(BaseModel):
+    impression: str
 
 
 @router.put("/{activity_oid}/member/{id}/impression")
 async def user_impression_edit(
     activity_oid: str,
     id: str,
-    impression: str = Form(...),
+    impression: PutImpression,
     user=Depends(get_current_user),
 ):
     """
     用户修改义工反思
     """
+
+    result = impression.impression
 
     # 获取义工信息
     activity = await db.zvms.activities.find_one(
@@ -359,29 +369,35 @@ async def user_impression_edit(
         )
 
     # 检查用户权限
-    if user["_id"] != validate_object_id(id) and user["permission"] < 16:
+    if user["id"] != str(validate_object_id(id)) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 修改义工反思
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid), "members._id": id},
-        {"$set": {"members.$.impression": impression}},
+        {"$set": {"members.$.impression": result}},
     )
 
-    # PUT 请求无需返回值
+    return {
+        "status": "ok",
+        "code": 200,
+    }
+
+
+class PutStatus(BaseModel):
+    status: MemberActivityStatus
 
 
 @router.put("/{activity_oid}/member/{user_oid}/status")
 async def user_status_edit(
-    activity_oid: str, user_oid: str, request: Request, user=Depends(get_current_user)
+    activity_oid: str, user_oid: str, payload: PutStatus, user=Depends(get_current_user)
 ):
     """
     用户修改义工状态
     """
 
     # 获取新状态
-    payload = await request.json()
-    status = payload["status"]
+    status = payload.status
 
     # 获取义工信息
     activity = await db.zvms.activities.find_one(
@@ -428,7 +444,7 @@ async def user_status_edit(
     if member["status"] == "effective" or member["status"] == "refused":
         raise HTTPException(status_code=400, detail="User status cannot be changed")
 
-    if user["id"] != user_oid and status == "draft" or status == "pending":
+    if user["id"] != user_oid and (status == "draft" or status == "pending"):
         raise HTTPException(
             status_code=403,
             detail="Permission denied. This action is only allowed to be done by the user himself / herself",
@@ -446,3 +462,33 @@ async def user_status_edit(
     }
 
     # PUT 请求无需返回值
+
+
+@router.delete("/{activity_oid}")
+async def delete_activity(activity_oid: str, user=Depends(get_current_user)):
+    """
+    Remove activity
+    """
+
+    activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid)}
+    )
+
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    if (
+        user["id"] != activity["creator"]
+        and "admin" not in user["per"]
+        and "department" not in user["per"]
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    result = await db.zvms.activities.delete_one(
+        {"_id": validate_object_id(activity_oid)}
+    )
+
+    return {
+        "status": "ok",
+        "code": 200,
+    }
