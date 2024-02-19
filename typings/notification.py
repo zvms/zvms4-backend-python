@@ -17,7 +17,6 @@ class Notification(BaseModel):
     time: str
     publisher: str
     receivers: Optional[list[str]]
-    route: Optional[str]
-    anoymous: bool
+    anonymous: bool
     expire: str  # ISO 8601
     type: NotificationType

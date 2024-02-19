@@ -194,7 +194,7 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 读取用户义工时长
-    user_activity = (await read_user_activity(user_oid, False, user))['data']
+    user_activity = (await read_user_activity(user_oid, False, user))["data"]
 
     # 计算用户义工时长
     ret = {"onCampus": 0, "offCampus": 0, "socialPractice": 0, "trophy": 0}
@@ -213,17 +213,25 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
     }
 
 
-@router.get("/notification")
-async def read_notifications(user=Depends(get_current_user)):
+@router.get("/{user_oid}/notification")
+async def read_notifications(user_oid: str, user=Depends(get_current_user)):
     """
-    返回通知列表
+    Get Notifications
     """
-    # 读取通知列表
-    result = await db.zvms.notifications.find().to_list(1000)
+    # Get notification list
+    notifications = await db.zvms.notifications.find().to_list(2000)
 
-    # 验证是否是 recievers
-    for i in range(len(result)):
-        if (user["id"] not in result[i]["receivers"]) and result[i]["global"] == False:
-            result.pop(i)
+    if user_oid != user["id"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
 
-    return result
+    result = []
+    for notification in notifications:
+        notification['_id'] = str(notification['_id'])
+        if str(user_oid) in notification["receivers"] or notification["global"]:
+            result.append(notification)
+
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": result,
+    }

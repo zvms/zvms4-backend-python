@@ -1,4 +1,3 @@
-from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typings.notification import Notification
 from utils import get_current_user, validate_object_id
@@ -22,7 +21,7 @@ async def create_notification(request: Notification, user=Depends(get_current_us
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     notification = request.model_dump()
-    notification["global_"] = notification["global"]
+    notification["global"] = notification["global_"]
     notification["publisher"] = user["id"]
     for i in notification["receivers"]:
         validate_object_id(i)
