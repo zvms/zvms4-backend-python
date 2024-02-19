@@ -49,7 +49,7 @@ async def authenticate_user(oid: str, password: str):
     return user
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme), scope: Optional[str] = 'long', refresh: Optional[bool] = False):
     """
     用于 Depends 注入, 返回当前用户信息 User
     """
@@ -60,22 +60,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     )
 
     try:
-        # 解码 JWT
-        print(token)
+        # Decode JWT
         payload = jwt_decode(token)
-        print(payload)
         oid: str = payload.get("sub", None)
         exp: int = payload.get("exp", None)
+        nbf: int = payload.get("nbf", None)
         salt: str = payload.get("salt", None)
 
-        print(payload)
-
         # 验证 JWT 是否完整
-        if oid is None or exp is None or salt is None:
+        if oid is None or exp is None or salt is None or nbf is None:
             raise credentials_exception
 
         # 验证 JWT 是否过期
         if exp is not None and datetime.utcnow() >= datetime.fromtimestamp(exp):
+            raise credentials_exception
+        if refresh and nbf is not None and datetime.utcnow() < datetime.fromtimestamp(nbf):
+            raise credentials_exception
+        if scope == 'short' and payload['scope'] == 'access_token':
             raise credentials_exception
     except jwt.PyJWTError:
         raise credentials_exception
@@ -89,7 +90,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 
-async def timestamp_change(date_string: str):
+def timestamp_change(date_string: str):
     """
     时间戳转换
     """

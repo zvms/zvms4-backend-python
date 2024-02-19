@@ -38,8 +38,8 @@ async def create_notification(
     # 创建通知
     payload = await request.json()
     payload.pop('_id', None)
-    payload['time'] = await timestamp_change(payload['time'])
-    payload['expire'] = await timestamp_change(payload['expire'])
+    payload['time'] = timestamp_change(payload['time'])
+    payload['expire'] = timestamp_change(payload['expire'])
     payload['publisher'] = user['_id']
     for i in range(len(payload['receivers'])):
         payload['receivers'][i] = validate_object_id(payload['receivers'][i])

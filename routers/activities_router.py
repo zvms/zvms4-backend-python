@@ -1,5 +1,6 @@
 from typings.activity import (
     Activity,
+    ActivityMember,
     ActivityStatus,
     ActivityType,
     MemberActivityStatus,
@@ -8,7 +9,7 @@ from typings.activity import (
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from typing import List
-from util.get_class import get_activities_related_to_user
+from util.get_class import get_activities_related_to_user, get_classid_by_code, get_classid_by_user_id
 from utils import get_current_user, validate_object_id, timestamp_change
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
@@ -250,53 +251,70 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
 
 
 @router.post("/{activity_oid}/member")
-async def user_activity_signup(activity_oid: str, user=Depends(get_current_user)):
+async def user_activity_signup(activity_oid: str, member: ActivityMember, user=Depends(get_current_user)):
     """
-    用户报名义工
+    Append user to activity
+    If user doesn't have permission, regard as a registration. Check the register limit, if full, raise 403.
+    If user is department, directly append user to activity if the activity is created by the department.
+    If user is secretary, user is allowed to append user who is in the same class.
+    Admin is allowed to append user to any activity.
     """
 
-    # 读取义工信息
+    # Read activity
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
 
-    # 用户是否可报名 [registration/classes/遍历]
-    _flag = False
-    for i in activity["registration"]["classes"]:
-        if str(user["class"]) == str(i["class"]):
-            _flag = True
-            break
-    if not _flag:
-        raise HTTPException(status_code=403, detail="Permission denied, not in class.")
+    target_classid = get_classid_by_user_id(user["id"])
 
-    # 名额是否已满 [registration/classes/class=xxx/limit]
+    # Check available if user doesn't have any other permission
     _flag = False
-    for i in activity["registration"]["classes"]:
-        if str(user["class"]) == str(i["class"]):
-            if len(activity["members"]) < i["max"]:
-                _flag = True
-                break
-    if not _flag:
-        raise HTTPException(status_code=403, detail="Permission denied, full.")
+    if 'secretary' not in user["per"] and 'admin' not in user["per"] and 'department' not in user['per']:
+        for i in activity["registration"]["classes"]:
+            if target_classid == i["classid"]:
+                members_in_class = list(filter(lambda x: get_classid_by_user_id(x["_id"]) == target_classid, activity["members"]))
+                if len(members_in_class) >= i["max"]:
+                    raise HTTPException(status_code=403, detail="Permission denied, full.")
+                else:
+                    _flag = True
+        if not _flag:
+            raise HTTPException(status_code=403, detail="Permission denied, not in class.")
+        else:
+            member.status = MemberActivityStatus.pending
+        if activity['type'] != ActivityType.specified:
+            raise HTTPException(status_code=403, detail="Permission denied, cannot be appended to this activity.")
+    elif 'secretary' in user["per"] and 'department' not in user["per"]:
+        member.status = MemberActivityStatus.pending
+        user_classid = get_classid_by_user_id(user["id"])
+        target_classid = get_classid_by_user_id(member.id)
+        if user_classid != target_classid:
+            raise HTTPException(status_code=403, detail="Permission denied, not in class.")
+        if activity['type'] == ActivityType.special:
+            raise HTTPException(status_code=403, detail="Permission denied, cannot be appended to this activity.")
+    elif 'department' in user["per"] or 'admin' in user["per"]:
+        status = MemberActivityStatus.effective if activity['type'] == ActivityType.special else MemberActivityStatus.pending
+        member.status = status
+    else:
+        raise HTTPException(status_code=403, detail="Permission denied.")
 
-    # 义工报名
+    diction = member.model_dump()
+    diction["_id"] = diction["id"]
+    del diction["id"]
+
+    # Append user to activity
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid)},
         {
             "$addToSet": {
-                "members": {
-                    "_id": str(user["id"]),
-                    "status": "draft",
-                    "impression": "",
-                    "mode": "on-campus",  # TODO: Need to be fixed
-                    "history": list(),
-                    "images": list(),
-                }
+                "members": diction
             }
         },
     )
 
-    # POST 请求无需返回值
+    return {
+        "status": "ok",
+        "code": 201,
+    }
 
 
 @router.delete("/{activity_oid}/member/{uid}")
@@ -304,10 +322,10 @@ async def user_activity_signoff(
     activity_oid: str, uid: str, user=Depends(get_current_user)
 ):
     """
-    用户取消义工
+    User exit activity or admin remove user from activity
     """
 
-    # 检测用户是否报名
+    # Check if member in activity
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
@@ -316,15 +334,15 @@ async def user_activity_signoff(
             status_code=403, detail="Permission denied, not in activity."
         )
 
-    # 权限检查
-    if user["id"] != str(validate_object_id(uid)) and "admin" not in user["per"]:
+    # Check user permission
+    if user["id"] != str(validate_object_id(uid)) and ("admin" not in user["per"] and "department" not in user["per"]):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    # 义工删除 mongodb 操作
+    # Remove user from activity
     members = activity["members"]
     members = [member for member in members if member["_id"] != str(user["id"])]
 
-    # 更新数据库中的文档
+    # Update activity
     result = await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid)}, {"$set": {"members": members}}
     )
@@ -347,17 +365,17 @@ async def user_impression_edit(
     user=Depends(get_current_user),
 ):
     """
-    用户修改义工反思
+    User modify activity impression
     """
 
     result = impression.impression
 
-    # 获取义工信息
+    # Fetch activity
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
 
-    # 检查用户是否在义工中
+    # Check if user is in activity
     _flag = False
     for member in activity["members"]:
         if member["_id"] == id:
@@ -368,11 +386,11 @@ async def user_impression_edit(
             status_code=403, detail="Permission denied, not in activity."
         )
 
-    # 检查用户权限
+    # Check user permission
     if user["id"] != str(validate_object_id(id)) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    # 修改义工反思
+    # Modify user impression
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid), "members._id": id},
         {"$set": {"members.$.impression": result}},
@@ -393,20 +411,20 @@ async def user_status_edit(
     activity_oid: str, user_oid: str, payload: PutStatus, user=Depends(get_current_user)
 ):
     """
-    用户修改义工状态
+    User modify activity status
     """
 
-    # 获取新状态
+    # Get target activity
     status = payload.status
 
-    # 获取义工信息
+    # Get activity information
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
 
     print(activity["members"])
 
-    # 检查用户是否在义工中
+    # Check if user is in activity
     _flag = False
     for member in activity["members"]:
         print(member["_id"], user_oid)
@@ -416,7 +434,7 @@ async def user_status_edit(
     if not _flag:
         raise HTTPException(status_code=400, detail="User not in activity")
 
-    # 检查用户权限
+    # Check user status
     if (
         "auditor" not in user["per"]
         and "admin" not in user["per"]
@@ -450,7 +468,7 @@ async def user_status_edit(
             detail="Permission denied. This action is only allowed to be done by the user himself / herself",
         )
 
-    # 修改义工状态
+    # Modify user status
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid), "members._id": user_oid},
         {"$set": {"members.$.status": status}},

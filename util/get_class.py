@@ -26,6 +26,12 @@ def get_classid_by_code(code: int):
     else:
         return 200000 + int(gradeid) * 100 + 10 + int(classid)
 
+async def get_classid_by_user_id(user_id: str):
+    user = await db.zvms.users.find_one({"_id": validate_object_id(user_id)})
+    if not user:
+        return None
+    return get_classid_by_code(user['code'])
+
 async def get_activities_related_to_user(user_oid: str):
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
     if not user:

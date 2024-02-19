@@ -116,18 +116,17 @@ async def read_users(query: str):
 @router.get("/{user_oid}")
 async def read_user(user_oid: str):
     """
-    返回用户信息
+    Return user's information
     """
     # # 验证用户权限, 仅管理员可查看他人信息
     # if user["permission"] < 16 and user["_id"] != validate_object_id(user_oid):
     #     raise HTTPException(status_code=403, detail="Permission denied")
 
-    # 读取用户信息
+    # Read user's information
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
 
     user["_id"] = str(user["_id"])
-    user["password"] = ""
-    # 返回用户信息, 排除密码
+    del user["password"]
     return {
         "status": "ok",
         "code": 200,
@@ -142,18 +141,18 @@ async def read_user_activity(
     user=Depends(get_current_user),
 ):
     """
-    返回用户义工列表
+    Return user's activities
     """
-    # 验证用户权限, 仅管理员可查看他人义工
-    print(user, user["id"])
+    # Check user's permission
+
     if "admin" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    # 读取用户义工列表
+    # Read user's activities
     all_activities = await db.zvms.activities.find().to_list(1000)
     ret = list()
 
-    # 返回用户报名的义工
+    # Filter activities
     for activity in all_activities:
         _flag = False
         for member in activity["members"]:
@@ -162,11 +161,11 @@ async def read_user_activity(
                 _flag = True
                 break
         if not registration and not _flag and "registration" in activity:
-            # 义工状态可报名
-            if activity["status"] == "effective" and await timestamp_change(
+            # Check if the activity is effective and the deadline is not passed
+            if activity["status"] == "effective" and timestamp_change(
                 activity["registration"]["deadline"]
             ) > int(datetime.utcnow().timestamp()):
-                # 寻找班级
+                # Check if the user's class is in the registration list
                 for _ in activity["registration"]["classes"]:
                     if str(_["class"]) == str(user["class"]):
                         ret.append(activity)
