@@ -34,6 +34,14 @@ async def get_cert():
         "data": open('./rsa_public_key.pem', 'r').read()
     }
 
+@app.get('/api/version')
+async def get_version():
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": "0.1.0-alpha.1"
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app=app, host="0.0.0.0", port=8000)
