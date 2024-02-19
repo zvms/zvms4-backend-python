@@ -47,9 +47,14 @@ def jwt_encode(
     permissions: list[str],
     type: Optional[str] = "long",
 ):
+    duration = (
+        datetime.timedelta(days=15)
+        if type == "long"
+        else datetime.timedelta(minutes=15)
+    )
     payload = {
         "iss": "zvms",
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=15),
+        "exp": datetime.datetime.utcnow() + duration,
         "iat": datetime.datetime.utcnow(),
         "sub": id,
         "scope": (
