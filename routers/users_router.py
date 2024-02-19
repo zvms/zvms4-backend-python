@@ -79,19 +79,9 @@ async def read_users(query: str):
     # 读取用户列表
     result = await db.zvms["users"].find().to_list(3000)
 
-    print(result)
-    print(query, type(query))
-
     query_result = []
 
     for user in result:
-        print(
-            user["name"],
-            user["id"],
-            query,
-            query in user["name"],
-            query in str(user["id"]),
-        )
         if query in user["name"] or query in str(user["id"]):
             user["_id"] = str(user["_id"])
             user["password"] = ""
