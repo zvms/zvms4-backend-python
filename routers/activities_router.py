@@ -79,7 +79,7 @@ async def create_activity(payload: Activity, user=Depends(get_current_user)):
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    diction = payload.dict()
+    diction = payload.model_dump()
 
     members = diction["members"]
 
@@ -193,10 +193,8 @@ async def read_activities(
     user=Depends(get_current_user),
 ):
     """
-    返回义工列表
+    Return activities
     """
-
-    print(type, range, mode, user)
 
     # User permission check
     if (
@@ -329,22 +327,27 @@ async def user_activity_signoff(
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
-    if not any(member["_id"] == str(user["id"]) for member in activity["members"]):
-        raise HTTPException(
-            status_code=403, detail="Permission denied, not in activity."
-        )
 
+    _flag = False
+    for member in activity["members"]:
+        if member["_id"] == uid:
+            _flag = True
+            break
+    if not _flag:
+        raise HTTPException(status_code=400, detail="User not in activity")
     # Check user permission
     if user["id"] != str(validate_object_id(uid)) and ("admin" not in user["per"] and "department" not in user["per"]):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # Remove user from activity
-    members = activity["members"]
-    members = [member for member in members if member["_id"] != str(user["id"])]
+    target = []
+    for member in activity["members"]:
+        if member["_id"] != uid:
+            target.append(member)
 
     # Update activity
     result = await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid)}, {"$set": {"members": members}}
+        {"_id": validate_object_id(activity_oid)}, {"$set": {"members": target}}
     )
 
     return {
@@ -422,12 +425,9 @@ async def user_status_edit(
         {"_id": validate_object_id(activity_oid)}
     )
 
-    print(activity["members"])
-
     # Check if user is in activity
     _flag = False
     for member in activity["members"]:
-        print(member["_id"], user_oid)
         if member["_id"] == user_oid:
             _flag = True
             break

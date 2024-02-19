@@ -1,93 +1,83 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Depends, Form, Request
-from typing import List
-from utils import get_current_user, validate_object_id, timestamp_change
-from datetime import datetime, timedelta, timezone
-from jose import JWTError, jwt
+from fastapi import APIRouter, HTTPException, Depends, Request
+from typings.notification import Notification
+from utils import get_current_user, validate_object_id
 from database import db
-from pydantic import BaseModel, Field
-from typing import Optional
-import settings
+from pydantic import BaseModel
 
 router = APIRouter()
 
 
-"""
-  _id: string
-  global: boolean
-  title: string
-  content: string
-  time: string // ISO-8601
-  publisher: string
-  receivers: string[] // ObjectId[]
-  route?: string // Route to URL
-  anonymous: boolean
-  expire: string // ISO-8601
-  type: 'pin' | 'important' | 'normal'
-"""
-
-
 @router.post("/")
-async def create_notification(
-        request: Request,
-        user = Depends(get_current_user)
+async def create_notification(request: Notification, user=Depends(get_current_user)):
+    """
+    Create Notification
+    """
+    # Create notification
+    if (
+        request.global_
+        and "admin" not in user["per"]
+        and "department" not in user["per"]
+        or user["id"] != request.publisher
     ):
-    """
-    创建通知
-    """
-    # 创建通知
-    payload = await request.json()
-    payload.pop('_id', None)
-    payload['time'] = timestamp_change(payload['time'])
-    payload['expire'] = timestamp_change(payload['expire'])
-    payload['publisher'] = user['_id']
-    for i in range(len(payload['receivers'])):
-        payload['receivers'][i] = validate_object_id(payload['receivers'][i])
-    result = await db.zvms.notifications.insert_one(payload)
-    return {"id": str(result.inserted_id)}
+        raise HTTPException(status_code=403, detail="Permission denied")
+    notification = request.model_dump()
+    notification["global_"] = notification["global"]
+    notification["publisher"] = user["id"]
+    for i in notification["receivers"]:
+        validate_object_id(i)
+    result = await db.zvms.notifications.insert_one(notification)
+    return {
+        "status": "ok",
+        "code": 201,
+        "data": {"_id": str(result.inserted_id)},
+    }
 
 
 @router.get("/")
-async def get_notifications(
-        user = Depends(get_current_user)
-    ):
+async def get_notifications(user=Depends(get_current_user)):
     """
-    获取通知列表
+    Get Notifications
     """
-    # 获取通知列表
+    # Get notifications
     result = await db.zvms.notifications.find().to_list(1000)
     return result
 
 
-@router.put("/{notification_oid}")
+class PutContent(BaseModel):
+    content: str
+
+
+@router.put("/{notification_oid}/content")
 async def update_notification(
-        notification_oid: str,
-        request: Request,
-        user = Depends(get_current_user)
-    ):
+    notification_oid: str, request: PutContent, user=Depends(get_current_user)
+):
     """
-    更新通知
+    Update Notification Content
     """
-    # 更新通知
-    payload = await request.json()
-    payload['time'] = timestamp_change(payload['time'])
-    payload['expire'] = timestamp_change(payload['expire'])
-    payload['publisher'] = user['_id']
-    for i in range(len(payload['receivers'])):
-        payload['receivers'][i] = validate_object_id(payload['receivers'][i])
+    item = await db.zvms.notifications.find_one(
+        {"_id": validate_object_id(notification_oid)}
+    )
+    if user["id"] != item["publisher"] and "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    # Update notification content
     await db.zvms.notifications.update_one(
         {"_id": validate_object_id(notification_oid)},
-        {"$set": payload}
+        {"$set": {"content": request.content}},
     )
 
 
 @router.delete("/{notification_oid}")
-async def delete_notification(
-        notification_oid: str,
-        user = Depends(get_current_user)
-    ):
+async def delete_notification(notification_oid: str, user=Depends(get_current_user)):
     """
-    删除通知
+    Remove Notification
     """
-    # 删除通知
-    await db.zvms.notifications.delete_one({"_id": validate_object_id(notification_oid)})
+    item = await db.zvms.notifications.find_one(
+        {"_id": validate_object_id(notification_oid)}
+    )
+    if user["id"] != item["publisher"] and "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    # Remove notification
+    await db.zvms.notifications.delete_one(
+        {"_id": validate_object_id(notification_oid)}
+    )
