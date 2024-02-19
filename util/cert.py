@@ -8,9 +8,8 @@ import json
 import datetime
 from database import db
 from bson import ObjectId
-from bcrypt import checkpw
+from bcrypt import checkpw, gensalt, hashpw
 from Crypto.Hash import SHA256
-import random
 
 
 class Auth:
@@ -46,24 +45,20 @@ def rsa_decrypt(ciphertext):
 def jwt_encode(
     id: str,
     permissions: list[str],
-    no_before: datetime.datetime = datetime.datetime.utcnow()
-    + datetime.timedelta(days=15), # Can refresh token in 15 days.
     type: Optional[str] = "long",
 ):
     payload = {
         "iss": "zvms",
         "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=15),
         "iat": datetime.datetime.utcnow(),
-        "nbf": no_before,
         "sub": id,
         "scope": (
             "access_token" if type == "long" else "temporary_token"
         ),  # Dangerous Zone Access needs temporary token, others need access token.
         "per": permissions,
-        "jti": str(ObjectId())
+        "jti": str(ObjectId()),
     }
     result = jwt.encode(payload, jwt_private_key, algorithm="HS256")
-    print(jwt_decode(result))
     return result
 
 
@@ -71,21 +66,24 @@ def jwt_decode(token):
     return jwt.decode(token, jwt_private_key, algorithms=["HS256"], verify=True)
 
 
+async def get_renewed_password(id: str, credential: str):
+    field = json.loads(rsa_decrypt(credential))
+    time = field["time"]
+    if time < datetime.datetime.now().timestamp() - 60:
+        raise HTTPException(status_code=401, detail="Token expired")
+    new_password = hashpw(bytes(field["password"], "utf-8"), gensalt())
+    await db.zvms.users.update_one(
+        {"_id": ObjectId(id)}, {"$set": {"password": new_password}}
+    )
+
+
 async def validate_by_cert(id: str, cert: str, type: Optional[str] = "long"):
     auth_field = json.loads(rsa_decrypt(cert))
     time = auth_field["time"]
     # in a minute
     if time < datetime.datetime.now().timestamp() - 60:
-        print(time, datetime.datetime.now().timestamp() - 60)
         raise HTTPException(status_code=401, detail="Token expired")
     user = await db.zvms.users.find_one({"_id": ObjectId(id)})
-    print(
-        user,
-        auth_field["password"],
-        checkpw(
-            bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")
-        ),
-    )
     if checkpw(
         bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")
     ):

@@ -7,16 +7,12 @@ def get_classid_by_code(code: int):
     if len(str(code)) == 7:
         codeid = '0' + str(code)
 
-    print(codeid)
-
     if len(codeid) != 8:
         return None
 
     typeid = codeid[0:2]
     gradeid = codeid[2:4]
     classid = codeid[4:6]
-
-    print(typeid, gradeid, classid)
 
     if gradeid == '00' or classid == '00':
         return None

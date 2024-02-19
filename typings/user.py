@@ -18,11 +18,6 @@ class UserPosition(str, Enum):
     system = "system"
 
 
-# class WithPassword[T]:
-#     password: str
-#     data: T
-
-
 class UserLogin(BaseModel):
     id: ObjectId | str
     credential: str
@@ -35,6 +30,7 @@ class User(BaseModel):
     sex: UserSex
     position: list[UserPosition]
     code: int
+
 
 class UserActivityTimeSums(BaseModel):
     onCampus: float

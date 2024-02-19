@@ -11,7 +11,7 @@ import settings
 from util.cert import jwt_decode
 
 
-# jwt 相关配置
+# Secret key and algorithm for JWT
 SECRET_KEY = open("aes_key.txt", "r").read()
 ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -27,7 +27,7 @@ def validate_object_id(id: str):
 
 async def get_user(oid: str):
     """
-    给定用户 $OID, 返回用户信息 User
+    Get user by oid
     """
     user = await db.zvms.users.find_one({"_id": validate_object_id(oid)})
     if user:
@@ -49,7 +49,7 @@ async def authenticate_user(oid: str, password: str):
     return user
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme), scope: Optional[str] = 'long', refresh: Optional[bool] = False):
+async def get_current_user(token: str = Depends(oauth2_scheme), scope: Optional[str] = 'long'):
     """
     用于 Depends 注入, 返回当前用户信息 User
     """
@@ -64,17 +64,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme), scope: Optional[
         payload = jwt_decode(token)
         oid: str = payload.get("sub", None)
         exp: int = payload.get("exp", None)
-        nbf: int = payload.get("nbf", None)
-        salt: str = payload.get("salt", None)
+        jti: str = payload.get("jti", None)
 
-        # 验证 JWT 是否完整
-        if oid is None or exp is None or salt is None or nbf is None:
+        # Check if the token is valid
+        if oid is None or exp is None or jti is None:
             raise credentials_exception
 
-        # 验证 JWT 是否过期
+        # Check if the token is expired
         if exp is not None and datetime.utcnow() >= datetime.fromtimestamp(exp):
-            raise credentials_exception
-        if refresh and nbf is not None and datetime.utcnow() < datetime.fromtimestamp(nbf):
             raise credentials_exception
         if scope == 'short' and payload['scope'] == 'access_token':
             raise credentials_exception
@@ -92,12 +89,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme), scope: Optional[
 
 def timestamp_change(date_string: str):
     """
-    时间戳转换
+    Change ISO-8601 to timestamp
     """
     dt = datetime.strptime(date_string, "%Y-%m-%dT%H:%M:%S.%fZ")
-    # 将 datetime 对象转换为 UTC
+    # Change the time zone to UTC
     dt = dt.replace(tzinfo=timezone.utc)
-    # 将 datetime 对象转换为时间戳
+    # Get the timestamp
     timestamp = dt.timestamp()
-    # 返回时间戳 int
+    # Return the timestamp
     return int(timestamp)

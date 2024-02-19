@@ -23,19 +23,12 @@ class AuthUser(BaseModel):
 
 @router.post("/auth")
 async def auth_user(auth: AuthUser):
-    print(auth)
-    print(auth.id, auth.mode, auth.credential)
     id = auth.id
     mode = auth.mode
     credential = auth.credential
 
     result = await validate_by_cert(id, credential)
 
-    # 使用一个秘密密钥对负载进行签名，创建 JWT
-    # token = jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
-
-    # 将 JWT 作为响应返回
-    print(result)
     return {
         "token": result,
         "_id": id,
@@ -46,16 +39,11 @@ async def auth_user(auth: AuthUser):
 async def change_password(
     user_oid: str, credential: str = Form(...), user=Depends(get_current_user)
 ):
-    """
-    参数示例    值                           说明
-    credential  D111C7215FC8F51F            用户新密码 (md5 测试用)
-    """
-    # 验证用户权限, 仅管理员可修改他人密码
-    print(user)
+    # Validate user's permission
     if "admin" not in user["per"] and user["id"] != validate_object_id(user_oid):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    # 修改用户密码
+    # Change user's password
     await db.zvms.users.update_one(
         {"_id": validate_object_id(user_oid)}, {"$set": {"password_hashed": credential}}
     )
