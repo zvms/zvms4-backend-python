@@ -125,14 +125,18 @@ async def change_activity_description(
     }
 
 
+class PutActivityName(BaseModel):
+    name: str
+
 @router.put("/{activity_oid}/name")
 async def change_activity_title(
-    activity_oid: str, name: str = Form(...), user=Depends(get_current_user)
+    activity_oid: str, payload: PutActivityName, user=Depends(get_current_user)
 ):
     """
-    修改义工标题
+    Modify Activity Title
     """
-    # 用户权限检查
+    name = payload.name
+    # Check permission
     if user["id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
@@ -147,19 +151,23 @@ async def change_activity_title(
         "code": 200,
     }
 
+class PutActivityStatus(BaseModel):
+    status: str
 
 @router.put("/{activity_oid}/status")
 async def change_activity_status(
-    activity_oid: str, status: str = Form(...), user=Depends(get_current_user)
+    activity_oid: str, payload: PutActivityStatus, user=Depends(get_current_user)
 ):
     """
-    修改义工状态
+    Modify activity status
     """
+
+    status = payload.status
 
     target_activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
-    # 用户权限检查
+    # Check user permission
     if (
         "secretary" not in user["per"]
         and "department" not in user["per"]
@@ -174,7 +182,7 @@ async def change_activity_status(
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    # 修改义工状态
+    # Update activity status
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid)},
         {"$set": {"status": status, "updatedAt": int(datetime.now().timestamp())}},

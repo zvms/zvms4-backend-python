@@ -34,12 +34,12 @@ async def get_activities_related_to_user(user_oid: str):
         return HTTPException(status_code=404, detail="User not found")
     activities = await db.zvms.activities.find().to_list(1200)
 
-    classid = get_classid_by_code(user['code'])
+    user_classid = get_classid_by_code(user['code'])
 
     user_map = []
     result = []
 
-    users = await db.zvms.users.find().to_list(1200)
+    users = await db.zvms.users.find().to_list(3000)
 
     for user in users:
         user['_id'] = str(user['_id'])
@@ -62,7 +62,9 @@ async def get_activities_related_to_user(user_oid: str):
             flag_ = True
         for member in activity['members']:
             member_class = get_classid_by_user_id(member['_id'])
-            if member_class == classid:
+            if activity == activities[-1]:
+                print(member_class, user_classid)
+            if member_class == user_classid:
                 flag_ = True
                 break
         if not flag_:
