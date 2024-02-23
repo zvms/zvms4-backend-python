@@ -138,7 +138,7 @@ async def read_user_activity(
                 ret.append(activity)
                 _flag = True
                 break
-        if not registration and not _flag and "registration" in activity:
+        if not registration and not _flag and activity["type"] == "specified" and "registration" in activity:
             # Check if the activity is effective and the deadline is not passed
             if activity["status"] == "effective" and timestamp_change(
                 activity["registration"]["deadline"]
