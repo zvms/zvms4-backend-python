@@ -27,7 +27,10 @@ async def auth_user(auth: AuthUser):
     mode = auth.mode
     credential = auth.credential
 
-    result = await validate_by_cert(id, credential)
+    if mode is None:
+        mode = 'long'
+
+    result = await validate_by_cert(id, credential, mode)
 
     return {
         "token": result,

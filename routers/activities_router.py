@@ -97,18 +97,22 @@ async def create_activity(payload: Activity, user=Depends(get_current_user)):
     return {"status": "ok", "code": 201, "data": str(id)}
 
 
+class PutDescription(BaseModel):
+    description: str
+
 @router.put("/{activity_oid}/description")
 async def change_activity_description(
-    activity_oid: str, description: str = Form(...), user=Depends(get_current_user)
+    activity_oid: str, payload: PutDescription, user=Depends(get_current_user)
 ):
     """
-    修改义工描述
+    Edit activity description
     """
-    # 用户权限检查
+    description = payload.description
+    # Check permission
     if user["id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    # 修改义工描述
+    # Edit activity description
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid)},
         {
