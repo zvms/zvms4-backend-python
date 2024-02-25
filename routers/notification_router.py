@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typings.notification import Notification
-from utils import get_current_user, validate_object_id
+from utils import compulsory_temporary_token, get_current_user, validate_object_id
 from database import db
 from pydantic import BaseModel
 
@@ -67,7 +67,7 @@ async def update_notification(
 
 
 @router.delete("/{notification_oid}")
-async def delete_notification(notification_oid: str, user=Depends(get_current_user)):
+async def delete_notification(notification_oid: str, user=Depends(compulsory_temporary_token)):
     """
     Remove Notification
     """

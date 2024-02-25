@@ -10,7 +10,7 @@ from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from typing import List
 from util.get_class import get_activities_related_to_user, get_classid_by_code, get_classid_by_user_id
-from utils import get_current_user, validate_object_id, timestamp_change
+from utils import compulsory_temporary_token, get_current_user, validate_object_id, timestamp_change
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 from database import db
@@ -329,7 +329,7 @@ async def user_activity_signup(activity_oid: str, member: ActivityMember, user=D
 
 @router.delete("/{activity_oid}/member/{uid}")
 async def user_activity_signoff(
-    activity_oid: str, uid: str, user=Depends(get_current_user)
+    activity_oid: str, uid: str, user=Depends(compulsory_temporary_token)
 ):
     """
     User exit activity or admin remove user from activity
@@ -495,7 +495,7 @@ async def user_status_edit(
 
 
 @router.delete("/{activity_oid}")
-async def delete_activity(activity_oid: str, user=Depends(get_current_user)):
+async def delete_activity(activity_oid: str, user=Depends(compulsory_temporary_token)):
     """
     Remove activity
     """
