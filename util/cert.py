@@ -95,6 +95,15 @@ async def validate_by_cert(id: str, cert: str, type: Optional[str] = "long"):
         return jwt_encode(id, user["position"], type=type)
     raise HTTPException(status_code=401, detail="Password incorrect")
 
+async def get_hashed_password_by_cert(cert: str):
+    auth_field = json.loads(rsa_decrypt(cert))
+    time = auth_field["time"]
+    # in a minute
+    if time < datetime.datetime.now().timestamp() - 60:
+        raise HTTPException(status_code=401, detail="Token expired")
+    password = auth_field["password"]
+    return hashpw(bytes(password, "utf-8"), gensalt())
+
 
 async def checkpwd(id: str, pwd: str):
     user = await db.zvms.users.find_one({"_id": ObjectId(id)})

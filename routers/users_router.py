@@ -4,13 +4,13 @@ from typing import List
 from pydantic import BaseModel
 from util.cases import kebab_case_to_camel_case
 from util.response import generate_response
-from utils import get_current_user, timestamp_change, validate_object_id
+from utils import compulsory_temporary_token, get_current_user, timestamp_change, validate_object_id
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from database import db
 from bson import ObjectId
 import settings
-from util.cert import validate_by_cert
+from util.cert import get_hashed_password_by_cert, validate_by_cert
 
 router = APIRouter()
 
@@ -38,20 +38,31 @@ async def auth_user(auth: AuthUser):
     }
 
 
+class PutPassword(BaseModel):
+    credential: str
+
 @router.put("/{user_oid}/password")
 async def change_password(
-    user_oid: str, credential: str = Form(...), user=Depends(get_current_user)
+    user_oid: str, credential: PutPassword, user=Depends(compulsory_temporary_token)
 ):
+    print(user)
     # Validate user's permission
     if "admin" not in user["per"] and user["id"] != validate_object_id(user_oid):
         raise HTTPException(status_code=403, detail="Permission denied")
 
+    password = await get_hashed_password_by_cert(credential.credential)
+
+    print(str(password))
+
     # Change user's password
     await db.zvms.users.update_one(
-        {"_id": validate_object_id(user_oid)}, {"$set": {"password_hashed": credential}}
+        {"_id": validate_object_id(user_oid)}, {"$set": {"password": str(password)}}
     )
 
-    # PUT 请求无需返回值
+    return {
+        "status": "ok",
+        "code": 200,
+    }
 
 
 @router.put("/{user_oid}/position")

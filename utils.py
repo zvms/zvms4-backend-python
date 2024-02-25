@@ -49,6 +49,10 @@ async def authenticate_user(oid: str, password: str):
     return user
 
 
+async def compulsory_temporary_token(token: str = Depends(oauth2_scheme)):
+    result = await get_current_user(token, 'short')
+    return result
+
 async def get_current_user(token: str = Depends(oauth2_scheme), scope: Optional[str] = 'long'):
     """
     用于 Depends 注入, 返回当前用户信息 User
