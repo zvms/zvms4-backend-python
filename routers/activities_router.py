@@ -24,7 +24,7 @@ router = APIRouter()
 @router.post("")
 async def create_activity(payload: Activity, user=Depends(get_current_user)):
     """
-    创建义工
+    Create activity
     """
 
     # remove _id
@@ -290,11 +290,11 @@ async def user_activity_signup(activity_oid: str, member: ActivityMember, user=D
         if not _flag:
             raise HTTPException(status_code=403, detail="Permission denied, not in class.")
         else:
-            member.status = MemberActivityStatus.pending
+            member.status = MemberActivityStatus.draft
         if activity['type'] != ActivityType.specified:
             raise HTTPException(status_code=403, detail="Permission denied, cannot be appended to this activity.")
     elif 'secretary' in user["per"] and 'department' not in user["per"]:
-        member.status = MemberActivityStatus.pending
+        member.status = MemberActivityStatus.draft
         user_classid = get_classid_by_user_id(user["id"])
         target_classid = get_classid_by_user_id(member.id)
         if user_classid != target_classid:

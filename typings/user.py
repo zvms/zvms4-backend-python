@@ -28,8 +28,7 @@ class User(BaseModel):
     id: int
     name: str
     sex: UserSex
-    position: list[UserPosition]
-    code: int
+    group: list[str]
 
 
 class UserActivityTimeSums(BaseModel):
