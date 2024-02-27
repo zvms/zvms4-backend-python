@@ -244,16 +244,16 @@ async def read_activities(
 @router.get("/{activity_oid}")
 async def read_activity(activity_oid: str, user=Depends(get_current_user)):
     """
-    返回义工信息
+    Return activity
     """
-    # 读取义工信息
+    # Read activity
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    # 遍历 activity 将所有 $OID 转换为 str
+    # Change ObjectId to str
     for key in activity:
         if isinstance(activity[key], ObjectId):
             activity[key] = str(activity[key])
@@ -490,8 +490,6 @@ async def user_status_edit(
         "status": "ok",
         "code": 200,
     }
-
-    # PUT 请求无需返回值
 
 
 @router.delete("/{activity_oid}")
