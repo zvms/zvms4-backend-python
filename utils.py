@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from h11 import Data
-from models.user import User
+from typings.user import User
 import jwt
 from typing import Optional
 from datetime import datetime, timezone

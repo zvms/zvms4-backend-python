@@ -19,12 +19,12 @@ class UserPosition(str, Enum):
 
 
 class UserLogin(BaseModel):
-    id: ObjectId | str
+    id: str
     credential: str
 
 
 class User(BaseModel):
-    _id: ObjectId | str
+    _id: str
     id: int
     name: str
     sex: UserSex
