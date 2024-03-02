@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from h11 import Data
+from urllib.parse import urlencode, urlparse
 from typings.user import User
 import jwt
 from typing import Optional
@@ -104,5 +105,19 @@ def timestamp_change(date_string: str):
     # Return the timestamp
     return int(timestamp)
 
+def get_img_token_url(user_oid: str, per: str):
+    url = urlparse(settings.IMGBED_SERVER)
+    url._replace(path='/user/getToken')
+    query = urlencode({
+        "superAdminToken": settings.IMGBED_SECRET_KEY,
+        "userId": user_oid,
+        "permission": per
+    })
+    url._replace(query=query)
+    return url.geturl()
+
 def get_img_token(user_oid, per):
-    return requests.get(f"http://localhost:6666/user/getToken?superAdminToken={settings.IMGBED_SECRET_KEY}&userId={user_oid}&permission={per}").json()["data"]["token"]
+    url = get_img_token_url(user_oid, per)
+    res = requests.get(url)
+    return res.json()['token']
+
