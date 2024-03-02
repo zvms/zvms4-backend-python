@@ -21,7 +21,7 @@ class UserPosition(str, Enum):
 
 
 class Group(BaseModel):
-    _id: ObjectId | str
+    _id: str
     name: str
     type: GroupType
     description: Optional[str]

@@ -38,6 +38,8 @@ async def get_notifications(user=Depends(get_current_user)):
     """
     Get Notifications
     """
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
     # Get notifications
     result = await db.zvms.notifications.find().to_list(1000)
     for i in result:

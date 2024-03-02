@@ -1,6 +1,6 @@
 from enum import Enum
 from bson import ObjectId
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typings.activity import ActivityMode
 
 
@@ -37,14 +37,14 @@ class TrophyMemberStatus(str, Enum):
 
 
 class TrophyMember(BaseModel):
-    _id: ObjectId | str
+    id: str = Field(..., alias='_id')
     award: str
     mode: ActivityMode
     status: TrophyMemberStatus
 
 
 class Trophy(BaseModel):
-    _id: ObjectId | str
+    _id: str
     name: str
     type: TrophyType
     level: TrophyLevel
@@ -52,7 +52,7 @@ class Trophy(BaseModel):
     team: bool
     status: TrophyStatus
     members: list[TrophyMember]
-    creator: ObjectId | str
+    creator: str
     instructor: str
     deadline: str  # ISO 8601
     time: str  # ISO 8601
