@@ -7,7 +7,7 @@ from pydantic import BaseModel
 router = APIRouter()
 
 
-@router.post("/")
+@router.post("")
 async def create_notification(request: Notification, user=Depends(get_current_user)):
     """
     Create Notification
@@ -33,13 +33,15 @@ async def create_notification(request: Notification, user=Depends(get_current_us
     }
 
 
-@router.get("/")
+@router.get("")
 async def get_notifications(user=Depends(get_current_user)):
     """
     Get Notifications
     """
     # Get notifications
     result = await db.zvms.notifications.find().to_list(1000)
+    for i in result:
+        i["_id"] = str(i["_id"])
     return result
 
 
