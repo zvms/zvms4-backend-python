@@ -9,6 +9,7 @@ from database import db
 from bson import ObjectId
 import settings
 from util.cert import jwt_decode
+import requests
 
 
 # Secret key and algorithm for JWT
@@ -102,3 +103,6 @@ def timestamp_change(date_string: str):
     timestamp = dt.timestamp()
     # Return the timestamp
     return int(timestamp)
+
+def get_img_token(user_oid, per):
+    return requests.get(f"http://localhost:6666/user/getToken?superAdminToken={settings.IMGBED_SECRET_KEY}&userId={user_oid}&permission={per}").json()["data"]["token"]

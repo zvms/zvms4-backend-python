@@ -4,7 +4,7 @@ from typing import List
 from pydantic import BaseModel
 from util.cases import kebab_case_to_camel_case
 from util.response import generate_response
-from utils import compulsory_temporary_token, get_current_user, timestamp_change, validate_object_id
+from utils import compulsory_temporary_token, get_current_user, timestamp_change, validate_object_id, get_img_token
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from database import db
@@ -238,4 +238,20 @@ async def read_notifications(user_oid: str, user=Depends(get_current_user)):
         "status": "ok",
         "code": 200,
         "data": result,
+    }
+
+@router.get("/{user_oid}/imgtoken")
+async def get_imgtoken(
+    user_oid: str,
+    user=Depends(get_current_user),
+):
+    # 根据用户的权限和 ID 获取图片上传 Token
+    per = 1 # 管理员权限
+    if "admin" not in user["per"] and user["id"] != validate_object_id(user_oid):
+        per = 0 # 普通用户
+    token = get_img_token(user_oid, per)
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": token,
     }
