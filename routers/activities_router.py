@@ -302,7 +302,8 @@ async def user_activity_signup(activity_oid: str, member: ActivityMember, user=D
         if activity['type'] == ActivityType.special:
             raise HTTPException(status_code=403, detail="Permission denied, cannot be appended to this activity.")
     elif 'department' in user["per"] or 'admin' in user["per"]:
-        status = MemberActivityStatus.effective if activity['type'] == ActivityType.special else MemberActivityStatus.pending
+        print('this one')
+        status = MemberActivityStatus.effective if activity['type'] == ActivityType.special else MemberActivityStatus.draft
         member.status = status
     else:
         raise HTTPException(status_code=403, detail="Permission denied.")
