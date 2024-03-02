@@ -11,6 +11,7 @@ from database import db
 from bson import ObjectId
 import settings
 from util.cert import get_hashed_password_by_cert, validate_by_cert
+import requests
 
 router = APIRouter()
 
@@ -239,3 +240,19 @@ async def read_notifications(user_oid: str, user=Depends(get_current_user)):
         "code": 200,
         "data": result,
     }
+
+@router.get("/{user_oid}/imgtoken")
+async def get_imgtoken(
+    user_oid: str,
+    user=Depends(get_current_user),
+):
+    # 根据用户的权限和 ID 获取图片上传 Token
+    per = 1 # 管理员权限
+    if "admin" not in user["per"] and user["id"] != validate_object_id(user_oid):
+        per = 0 # 普通用户
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": requests.get(f"http://localhost:6666/user/getToken?superAdminToken={settings.IMGBED_SECRET_KEY}&userId={user_oid}&permission={per}").json()["data"]["token"],
+    }
+    # for more specific information, please refer to https://www.amzcd.top/posts/zvmsapi/
