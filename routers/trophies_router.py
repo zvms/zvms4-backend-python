@@ -55,7 +55,25 @@ async def get_trophies(user=Depends(get_current_user)):
     result = await db.zvms.trophies.find().to_list(1000)
     for i in result:
         i["_id"] = str(i["_id"])
-    return result
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": result,
+    }
+
+@router.get("/{trophy_oid}")
+async def get_trophy(trophy_oid: str, user=Depends(get_current_user)):
+    """
+    Get Trophy
+    """
+    # Get trophy
+    result = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
+    result["_id"] = str(result["_id"])
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": result,
+    }
 
 
 class PutStatus(BaseModel):
@@ -113,7 +131,7 @@ async def delete_trophy(trophy_oid: str, user=Depends(compulsory_temporary_token
     return {"status": "ok", "code": 200}
 
 
-@router.post("/{trophy_oid}/members")
+@router.post("/{trophy_oid}/member")
 async def add_trophy_member(
     trophy_oid: str, member: TrophyMember, user=Depends(get_current_user)
 ):
@@ -127,7 +145,7 @@ async def add_trophy_member(
     target_classid = get_classid_by_user_id(target)
     user_classid = get_classid_by_user_id(user["id"])
 
-    if "admin" in user["per"] and "department" in user["per"]:
+    if "admin" in user["per"] or "department" in user["per"]:
         member.status = TrophyMemberStatus.pending
         # The approval of the trophy needs to be approved by the member of department from the instructor
     elif "secretary" in user["per"] and user_classid == target_classid:
@@ -151,7 +169,7 @@ class PutMemberStatus(BaseModel):
     status: TrophyMemberStatus
 
 
-@router.put("/{trophy_oid}/members/{member_oid}/status")
+@router.put("/{trophy_oid}/member/{member_oid}/status")
 async def update_trophy_member_status(
     trophy_oid: str,
     member_oid: str,
@@ -180,7 +198,7 @@ class PutTrophyMemberMode(BaseModel):
     mode: ActivityMode
 
 
-@router.put("/{trophy_oid}/members/{member_oid}/mode")
+@router.put("/{trophy_oid}/member/{member_oid}/mode")
 async def update_trophy_member_mode(
     trophy_oid: str,
     member_oid: str,
@@ -200,7 +218,7 @@ async def update_trophy_member_mode(
     return {"status": "ok", "code": 200}
 
 
-@router.delete("/{trophy_oid}/members/{member_oid}")
+@router.delete("/{trophy_oid}/member/{member_oid}")
 async def delete_trophy_member(
     trophy_oid: str, member_oid: str, user=Depends(compulsory_temporary_token)
 ):
@@ -225,7 +243,7 @@ async def delete_trophy_member(
     return {"status": "ok", "code": 200}
 
 
-@router.post("/{trophy_oid}/awards")
+@router.post("/{trophy_oid}/award")
 async def add_trophy_award(
     trophy_oid: str, award: TrophyAward, user=Depends(get_current_user)
 ):
@@ -243,7 +261,7 @@ async def add_trophy_award(
     return {"status": "ok", "code": 201}
 
 
-@router.delete("/{trophy_oid}/awards/{award_oid}")
+@router.delete("/{trophy_oid}/award/{award_oid}")
 async def delete_trophy_award(
     trophy_oid: str, award_oid: str, user=Depends(compulsory_temporary_token)
 ):
@@ -267,7 +285,7 @@ class PutTrophyAwardDuration(BaseModel):
     duration: float
 
 
-@router.put("/{trophy_oid}/awards/{award_oid}/duration")
+@router.put("/{trophy_oid}/award/{award_oid}/duration")
 async def update_trophy_award_duration(
     trophy_oid: str,
     award_oid: str,
