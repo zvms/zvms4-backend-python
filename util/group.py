@@ -1,16 +1,17 @@
+from bson import ObjectId
 from database import db
-from typings.user import User
 
-async def get_user_permissions(user: User):
+async def get_user_permissions(user: dict):
     """
     Get user's permissions
     """
-    groups = user.group
-
+    groups = user['group']
     permissions = []
 
     for group in groups:
-        group = await db.zvms.groups.find_one({"_id": group})
-        permissions.extend(group["permissions"])
+        group = await db.zvms.groups.find_one({"_id": ObjectId(group)})
+        for permission in group['permissions']:
+            if permission not in permissions:
+                permissions.append(permission)
 
     return permissions

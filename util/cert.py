@@ -11,6 +11,8 @@ from bson import ObjectId
 from bcrypt import checkpw, gensalt, hashpw
 from Crypto.Hash import SHA256
 
+from util.group import get_user_permissions
+
 
 class Auth:
     password: str
@@ -92,7 +94,7 @@ async def validate_by_cert(id: str, cert: str, type: Optional[str] = "long"):
     if checkpw(
         bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")
     ):
-        return jwt_encode(id, user["position"], type=type)
+        return jwt_encode(id, await get_user_permissions(user), type=type)
     raise HTTPException(status_code=401, detail="Password incorrect")
 
 async def get_hashed_password_by_cert(cert: str):

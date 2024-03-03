@@ -42,6 +42,9 @@ async def get_groups(user=Depends(get_current_user)):
 
     result = await db.zvms.groups.find().to_list(1000)
 
+    for group in result:
+        group["_id"] = str(group["_id"])
+
     return {
         "status": "ok",
         "code": 200,
@@ -59,6 +62,8 @@ async def get_group(group_id: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     result = await db.zvms.groups.find_one({"_id": ObjectId(group_id)})
+
+    result['_id'] = str(result['_id'])
 
     return {
         "status": "ok",
