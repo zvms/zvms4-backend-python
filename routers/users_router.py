@@ -3,8 +3,13 @@ from typing import List
 
 from pydantic import BaseModel
 from util.cases import kebab_case_to_camel_case
-from util.response import generate_response
-from utils import compulsory_temporary_token, get_current_user, timestamp_change, validate_object_id, get_img_token
+from utils import (
+    compulsory_temporary_token,
+    get_current_user,
+    timestamp_change,
+    validate_object_id,
+    get_img_token,
+)
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from database import db
@@ -28,7 +33,7 @@ async def auth_user(auth: AuthUser):
     credential = auth.credential
 
     if mode is None:
-        mode = 'long'
+        mode = "long"
 
     result = await validate_by_cert(id, credential, mode)
 
@@ -41,13 +46,14 @@ async def auth_user(auth: AuthUser):
 class PutPassword(BaseModel):
     credential: str
 
+
 @router.put("/{user_oid}/password")
 async def change_password(
     user_oid: str, credential: PutPassword, user=Depends(compulsory_temporary_token)
 ):
     print(user)
     # Validate user's permission
-    if "admin" not in user["per"] and user["id"] != validate_object_id(user_oid):
+    if "admin" not in user["per"] and user["id"] != user_oid:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     password = await get_hashed_password_by_cert(credential.credential)
@@ -61,26 +67,6 @@ async def change_password(
         "status": "ok",
         "code": 200,
     }
-
-
-@router.put("/{user_oid}/position")
-async def change_permission(
-    user_oid: str, position: int = Form(...), user=Depends(get_current_user)
-):
-    """
-    参数示例    值                           说明
-    position    16                          用户新权限等级
-    """
-    # 验证用户权限, 仅管理员可修改他人权限
-    if "admin" not in user["per"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    # 修改用户权限
-    await db.zvms.users.update_one(
-        {"_id": validate_object_id(user_oid)}, {"$set": {"permission": position}}
-    )
-
-    # PUT 请求无需返回值
 
 
 @router.get("")
@@ -124,6 +110,34 @@ async def read_user(user_oid: str):
     }
 
 
+@router.post("/{user_oid}/group")
+async def add_user_to_group(
+    user_oid: str, group_id: str, user=Depends(get_current_user)
+):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    # Add user to group
+    await db.zvms.users.update_one(
+        {"_id": validate_object_id(user_oid)},
+        {"$addToSet": {"group": validate_object_id(group_id)}},
+    )
+
+
+@router.delete("/{user_oid}/group/{group_id}")
+async def remove_user_from_group(
+    user_oid: str, group_id: str, user=Depends(get_current_user)
+):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    # Remove user from group
+    await db.zvms.users.update_one(
+        {"_id": validate_object_id(user_oid)},
+        {"$pull": {"group": validate_object_id(group_id)}},
+    )
+
+
 @router.get("/{user_oid}/activity")
 async def read_user_activity(
     user_oid: str,
@@ -150,7 +164,12 @@ async def read_user_activity(
                 ret.append(activity)
                 _flag = True
                 break
-        if not registration and not _flag and activity["type"] == "specified" and "registration" in activity:
+        if (
+            not registration
+            and not _flag
+            and activity["type"] == "specified"
+            and "registration" in activity
+        ):
             # Check if the activity is effective and the deadline is not passed
             if activity["status"] == "effective" and timestamp_change(
                 activity["registration"]["deadline"]
@@ -189,10 +208,14 @@ async def read_user_activity(
 @router.get("/{user_oid}/time")
 async def read_user_time(user_oid: str, user=Depends(get_current_user)):
     """
-    返回用户义工时长
+    Return user's time
     """
-    # 验证用户权限, 仅管理员可查看他人时长
-    if "admin" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
+    # Check user's permission
+    if (
+        "admin" not in user["per"]
+        and "department" not in user["per"]
+        and user["id"] != str(validate_object_id(user_oid))
+    ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # 读取用户义工时长
@@ -228,7 +251,7 @@ async def read_notifications(user_oid: str, user=Depends(get_current_user)):
 
     result = []
     for notification in notifications:
-        notification['_id'] = str(notification['_id'])
+        notification["_id"] = str(notification["_id"])
         if str(user_oid) in notification["receivers"] or notification["global"]:
             result.append(notification)
 
@@ -238,15 +261,16 @@ async def read_notifications(user_oid: str, user=Depends(get_current_user)):
         "data": result,
     }
 
+
 @router.get("/{user_oid}/imgtoken")
 async def get_imgtoken(
     user_oid: str,
     user=Depends(get_current_user),
 ):
     # 根据用户的权限和 ID 获取图片上传 Token
-    per = 1 # 管理员权限
+    per = 1  # 管理员权限
     if "admin" not in user["per"] and user["id"] != validate_object_id(user_oid):
-        per = 0 # 普通用户
+        per = 0  # 普通用户
     token = get_img_token(user_oid, per)
     return {
         "status": "ok",

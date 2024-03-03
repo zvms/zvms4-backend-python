@@ -9,7 +9,8 @@ from typings.activity import (
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from typing import List
-from util.get_class import get_activities_related_to_user, get_classid_by_code, get_classid_by_user_id
+from util.get_class import get_activities_related_to_user
+from util.group import is_in_a_same_class
 from utils import compulsory_temporary_token, get_current_user, validate_object_id, timestamp_change
 from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
@@ -223,7 +224,7 @@ async def read_activities(
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     if mode == "campus":
-        # 读取义工列表
+        # Read activities
         cursor = db.zvms.activities.find()
         activities = await cursor.to_list(length=1500)
         result = list()
@@ -275,29 +276,13 @@ async def user_activity_signup(activity_oid: str, member: ActivityMember, user=D
         {"_id": validate_object_id(activity_oid)}
     )
 
-    target_classid = get_classid_by_user_id(user["id"])
-
     # Check available if user doesn't have any other permission
     _flag = False
     if 'secretary' not in user["per"] and 'admin' not in user["per"] and 'department' not in user['per']:
-        for i in activity["registration"]["classes"]:
-            if target_classid == i["classid"]:
-                members_in_class = list(filter(lambda x: get_classid_by_user_id(x["_id"]) == target_classid, activity["members"]))
-                if len(members_in_class) >= i["max"]:
-                    raise HTTPException(status_code=403, detail="Permission denied, full.")
-                else:
-                    _flag = True
-        if not _flag:
-            raise HTTPException(status_code=403, detail="Permission denied, not in class.")
-        else:
-            member.status = MemberActivityStatus.draft
-        if activity['type'] != ActivityType.specified:
-            raise HTTPException(status_code=403, detail="Permission denied, cannot be appended to this activity.")
+        raise HTTPException(status_code=403, detail="Permission denied.")
     elif 'secretary' in user["per"] and 'department' not in user["per"]:
         member.status = MemberActivityStatus.draft
-        user_classid = get_classid_by_user_id(user["id"])
-        target_classid = get_classid_by_user_id(member.id)
-        if user_classid != target_classid:
+        if not is_in_a_same_class(user["id"], member.id):
             raise HTTPException(status_code=403, detail="Permission denied, not in class.")
         if activity['type'] == ActivityType.special:
             raise HTTPException(status_code=403, detail="Permission denied, cannot be appended to this activity.")
@@ -349,7 +334,7 @@ async def user_activity_signoff(
     if not _flag:
         raise HTTPException(status_code=400, detail="User not in activity")
     # Check user permission
-    if user["id"] != str(validate_object_id(uid)) and ("admin" not in user["per"] and "department" not in user["per"]):
+    if user["id"] != str(validate_object_id(uid)) and ("admin" not in user["per"] and "department" not in user["per"]) and ('secretary' not in user["per"] or not is_in_a_same_class(user["id"], uid)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # Remove user from activity

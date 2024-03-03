@@ -9,7 +9,7 @@ from typings.trophy import (
 from bson import ObjectId
 from database import db
 from fastapi import HTTPException, APIRouter, Depends
-from util.get_class import get_classid_by_user_id
+from util.group import is_in_a_same_class
 from utils import compulsory_temporary_token, get_current_user, validate_object_id
 from datetime import datetime
 from pydantic import BaseModel
@@ -141,14 +141,10 @@ async def add_trophy_member(
     activity = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
 
     target = member.id
-
-    target_classid = get_classid_by_user_id(target)
-    user_classid = get_classid_by_user_id(user["id"])
-
     if "admin" in user["per"] or "department" in user["per"]:
         member.status = TrophyMemberStatus.pending
         # The approval of the trophy needs to be approved by the member of department from the instructor
-    elif "secretary" in user["per"] and user_classid == target_classid:
+    elif "secretary" in user["per"] and is_in_a_same_class(user["id"], target):
         member.status = TrophyMemberStatus.pending
     elif target == user["id"]:
         member.status = TrophyMemberStatus.pending
@@ -226,13 +222,11 @@ async def delete_trophy_member(
     Delete Trophy Member
     """
     trophy = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
-    target_classid = get_classid_by_user_id(member_oid)
-    user_classid = get_classid_by_user_id(user["id"])
     if (
         "admin" not in user["per"]
         and not ("department" in user["per"] and user["id"] == trophy["creator"])
         and member_oid != user["id"]
-        and not ("secretary" in user["per"] and user_classid == target_classid)
+        and not ("secretary" in user["per"] and is_in_a_same_class(user["id"], member_oid))
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     # Delete trophy member
