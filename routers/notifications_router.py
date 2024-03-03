@@ -44,7 +44,32 @@ async def get_notifications(user=Depends(get_current_user)):
     result = await db.zvms.notifications.find().to_list(1000)
     for i in result:
         i["_id"] = str(i["_id"])
-    return result
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": result,
+    }
+
+
+@router.get("/{notification_oid}")
+async def get_notification(notification_oid: str, user=Depends(get_current_user)):
+    """
+    Get Notification
+    """
+    item = await db.zvms.notifications.find_one(
+        {"_id": validate_object_id(notification_oid)}
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    if user["id"] != item["publisher"] and "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    # Get notification
+    item["_id"] = str(item["_id"])
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": item,
+    }
 
 
 class PutContent(BaseModel):
@@ -71,7 +96,9 @@ async def update_notification(
 
 
 @router.delete("/{notification_oid}")
-async def delete_notification(notification_oid: str, user=Depends(compulsory_temporary_token)):
+async def delete_notification(
+    notification_oid: str, user=Depends(compulsory_temporary_token)
+):
     """
     Remove Notification
     """
