@@ -52,8 +52,6 @@ async def change_password(
 
     password = await get_hashed_password_by_cert(credential.credential)
 
-    print(str(password))
-
     # Change user's password
     await db.zvms.users.update_one(
         {"_id": validate_object_id(user_oid)}, {"$set": {"password": str(password)}}

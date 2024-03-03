@@ -53,13 +53,10 @@ async def get_groups(user=Depends(get_current_user)):
 
 
 @router.get("/{group_id}")
-async def get_group(group_id: str, user=Depends(get_current_user)):
+async def get_group(group_id: str):
     """
     Get a group
     """
-
-    if len(user["per"]) == 0:
-        raise HTTPException(status_code=403, detail="Permission denied")
 
     result = await db.zvms.groups.find_one({"_id": ObjectId(group_id)})
 

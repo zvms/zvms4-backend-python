@@ -104,7 +104,7 @@ async def get_hashed_password_by_cert(cert: str):
     if time < datetime.datetime.now().timestamp() - 60:
         raise HTTPException(status_code=401, detail="Token expired")
     password = auth_field["password"]
-    return hashpw(bytes(password, "utf-8"), gensalt())
+    return hashpw(bytes(password, "utf-8"), gensalt()).decode("utf-8")
 
 
 async def checkpwd(id: str, pwd: str):
