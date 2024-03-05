@@ -2,7 +2,14 @@ import code
 from fastapi import FastAPI, Depends
 from bson.objectid import ObjectId
 from typing import List
-from routers import notifications_router, users_router, activities_router, groups_router, trophies_router
+from routers import (
+    notifications_router,
+    users_router,
+    activities_router,
+    groups_router,
+    trophies_router,
+    exports_router,
+)
 from fastapi import FastAPI
 from database import close_mongo_connection, connect_to_mongo
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +38,8 @@ app.include_router(
 )
 app.include_router(groups_router.router, prefix="/api/group", tags=["groups"])
 app.include_router(trophies_router.router, prefix="/api/trophy", tags=["trophies"])
+app.include_router(exports_router.router, prefix="/api/export", tags=["exports"])
+
 
 @app.get("/api/cert")
 async def get_cert():

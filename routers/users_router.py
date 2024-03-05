@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Form, Request
 from typing import List
 
 from pydantic import BaseModel
+from util.calculate import calculate_time
 from util.cases import kebab_case_to_camel_case
 from utils import (
     compulsory_temporary_token,
@@ -218,23 +219,17 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    # 读取用户义工时长
-    user_activity = (await read_user_activity(user_oid, False, user))["data"]
-
-    # 计算用户义工时长
-    ret = {"onCampus": 0, "offCampus": 0, "socialPractice": 0, "trophy": 0}
-
-    for activity in user_activity:
-        for i in activity["members"]:
-            if i["_id"] == user_oid and i["status"] == "effective":
-                mode = kebab_case_to_camel_case(i["mode"])
-                ret[mode] += i["duration"]
-                break
-
+    result = await calculate_time(user_oid)
     return {
         "status": "ok",
         "code": 200,
-        "data": ret,
+        "data": {
+            'onCampus': result['on-campus'],
+            'offCampus': result['off-campus'],
+            'socialPractice': result['social-practice'],
+            'trophy': result['trophy'],
+            'total': result['total'],
+        },
     }
 
 

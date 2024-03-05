@@ -13,8 +13,6 @@ router = APIRouter()
 
 exports: list[ExportResponse] = []
 
-lock = asyncio.Lock()
-
 
 async def export_time(export: Export, id: str):
     if export.start is not None and export.end is not None:
@@ -47,22 +45,11 @@ async def export_time(export: Export, id: str):
         discount,
         groups,
     )
-    if export.format == ExportFormat.json:
-        return Response(
-            content=result,
-            media_type="application/json",
-            headers={"Content-Disposition": "attachment; filename=time.json"},
-        )
-    elif export.format == ExportFormat.csv:
+    if export.format == ExportFormat.csv:
         result = json2csv(result)
     elif export.format == ExportFormat.xlsx:
         result = json2xlsx(result)
-    async with lock:
-        for exportion in exports:
-            if exportion.id == id:
-                exportion.status = ExportStatus.completed
-                exportion.data = result
-                break
+    return result
 
 
 @router.get("")
