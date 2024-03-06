@@ -11,7 +11,8 @@ from bson import ObjectId
 import settings
 from util.cert import jwt_decode
 import requests
-
+import random
+import string
 
 # Secret key and algorithm for JWT
 SECRET_KEY = open("aes_key.txt", "r").read()
@@ -121,3 +122,5 @@ def get_img_token(user_oid, per):
     res = requests.get(url)
     return res.json()['token']
 
+def randomString(length=16):
+    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length))
