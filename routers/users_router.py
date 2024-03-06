@@ -154,33 +154,15 @@ async def read_user_activity(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # Read user's activities
-    all_activities = await db.zvms.activities.find().to_list(1000)
+    all_activities = await db.zvms.activities.find().to_list(None)
     ret = list()
 
     # Filter activities
     for activity in all_activities:
-        _flag = False
         for member in activity["members"]:
             if member["_id"] == user_oid:
                 ret.append(activity)
-                _flag = True
                 break
-        if (
-            not registration
-            and not _flag
-            and activity["type"] == "specified"
-            and "registration" in activity
-        ):
-            # Check if the activity is effective and the deadline is not passed
-            if activity["status"] == "effective" and timestamp_change(
-                activity["registration"]["deadline"]
-            ) > int(datetime.utcnow().timestamp()):
-                # Check if the user's class is in the registration list
-                for _ in activity["registration"]["classes"]:
-                    if str(_["class"]) == str(user["class"]):
-                        ret.append(activity)
-                        _flag = True
-                        break
         pass
 
     def convert_objectid_to_str(data):
