@@ -225,16 +225,17 @@ async def read_activities(
         raise HTTPException(status_code=403, detail="Permission denied")
     if mode == "campus":
         # Read activities
-        activities = await db.zvms.activities.find().to_list(1500)
-        result = list()
+        result = []
+        activities = await db.zvms.activities.find({}, { 'members': False }).to_list(None)
         for activity in activities:
             activity["_id"] = str(activity["_id"])
-            if activity['type'] == 'special':
-                activity['members'] = list()
-            else:
-                for member in activity['members']:
-                    member['impression'] = ''
-                    member['history'] = []
+            # if activity['type'] == 'special':
+            #     while len(activity['members']):
+            #         activity['members'].pop()
+            # else:
+            #     for member in activity['members']:
+            #         member['impression'] = ''
+            #         member['history'] = []
             result.append(activity)
         return {"status": "ok", "code": 200, "data": result}
     elif mode == "class":
