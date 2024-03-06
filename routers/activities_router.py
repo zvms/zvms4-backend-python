@@ -225,17 +225,17 @@ async def read_activities(
         raise HTTPException(status_code=403, detail="Permission denied")
     if mode == "campus":
         # Read activities
-        cursor = db.zvms.activities.find()
-        activities = await cursor.to_list(length=1500)
+        activities = await db.zvms.activities.find().to_list(1500)
         result = list()
         for activity in activities:
             activity["_id"] = str(activity["_id"])
-            if type is None or activity["type"] == type or type == "all":
-                # 遍历 activity 将所有 $OID 转换为 str
-                for key in activity:
-                    if isinstance(activity[key], ObjectId):
-                        activity[key] = str(activity[key])
-                result.append(activity)
+            if activity['type'] == 'special':
+                activity['members'] = list()
+            else:
+                for member in activity['members']:
+                    member['impression'] = ''
+                    member['history'] = []
+            result.append(activity)
         return {"status": "ok", "code": 200, "data": result}
     elif mode == "class":
         result = await get_activities_related_to_user(user["id"])
