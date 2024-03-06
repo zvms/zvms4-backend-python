@@ -12,6 +12,7 @@ from bcrypt import checkpw, gensalt, hashpw
 from Crypto.Hash import SHA256
 
 from util.group import get_user_permissions
+from utils import validate_object_id
 
 
 class Auth:
@@ -90,7 +91,7 @@ async def validate_by_cert(id: str, cert: str, type: Optional[str] = "long"):
     # in a minute
     if time < datetime.datetime.now().timestamp() - 60:
         raise HTTPException(status_code=401, detail="Token expired")
-    user = await db.zvms.users.find_one({"_id": ObjectId(id)})
+    user = await db.zvms.users.find_one({"_id": validate_object_id(id)})
     if checkpw(
         bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")
     ):
