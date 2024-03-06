@@ -229,13 +229,6 @@ async def read_activities(
         activities = await db.zvms.activities.find({}, { 'members': False }).to_list(None)
         for activity in activities:
             activity["_id"] = str(activity["_id"])
-            # if activity['type'] == 'special':
-            #     while len(activity['members']):
-            #         activity['members'].pop()
-            # else:
-            #     for member in activity['members']:
-            #         member['impression'] = ''
-            #         member['history'] = []
             result.append(activity)
         return {"status": "ok", "code": 200, "data": result}
     elif mode == "class":
@@ -250,15 +243,16 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
     """
     # Read activity
     activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
+        {"_id": validate_object_id(activity_oid)},
+        {
+            "members.impression": False,
+            "members.history": False,
+        }
     )
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    # Change ObjectId to str
-    for key in activity:
-        if isinstance(activity[key], ObjectId):
-            activity[key] = str(activity[key])
+    activity['_id'] = str(activity['_id'])
     return {"status": "ok", "code": 200, "data": activity}
 
 
@@ -311,6 +305,24 @@ async def user_activity_signup(activity_oid: str, member: ActivityMember, user=D
     return {
         "status": "ok",
         "code": 201,
+    }
+
+
+@router.get("/{activity_oid}/member/{uid}")
+async def read_activity_user(activity_oid: str, uid: str, user=Depends(get_current_user)):
+    if 'department' not in user['per'] and 'admin' not in user['per'] and 'auditor' not in user['per'] and 'inspector' not in user['per'] and not ('secretary' in user['per'] and is_in_a_same_class(user['id'], uid) and user['id'] != uid):
+        raise HTTPException(status_code=403, detail='Permission denined.')
+    activity = await db.zvms.activities.find({
+        "_id": validate_object_id(activity_oid),
+        "members._id": uid
+    }, {
+        "members.$": 1,
+        "_id": 0
+    }).to_list(None)
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": activity[0]['members'][0]
     }
 
 
