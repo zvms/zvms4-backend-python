@@ -154,37 +154,25 @@ async def read_user_activity(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # Read user's activities
-    all_activities = await db.zvms.activities.find().to_list(None)
-    ret = list()
+    all_activities = await db.zvms.activities.find(
+        { "members._id": str(validate_object_id(user_oid)) },
+        {
+            "name": 1,
+            "date": 1,
+            "_id": 1,
+            "status": 1,
+            "type": 1,
+            "members.$": 1,
+        }
+    ).to_list(None)
 
-    # Filter activities
     for activity in all_activities:
-        for member in activity["members"]:
-            if member["_id"] == user_oid:
-                ret.append(activity)
-                break
-        pass
+        activity["_id"] = str(activity["_id"])
 
-    def convert_objectid_to_str(data):
-        if isinstance(data, dict):
-            for key, value in data.items():
-                if isinstance(value, ObjectId):
-                    data[key] = str(value)
-                else:
-                    convert_objectid_to_str(value)
-        elif isinstance(data, list):
-            for index, item in enumerate(data):
-                if isinstance(item, ObjectId):
-                    # 如果当前项目是一个 ObjectId，那么将它转换为字符串
-                    data[index] = str(item)
-                else:
-                    convert_objectid_to_str(item)
-
-    convert_objectid_to_str(ret)
     return {
         "status": "ok",
         "code": 200,
-        "data": ret,
+        "data": all_activities,
     }
 
 
