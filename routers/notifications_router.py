@@ -14,10 +14,8 @@ async def create_notification(request: Notification, user=Depends(get_current_us
     """
     # Create notification
     if (
-        request.global_
-        and "admin" not in user["per"]
+        "admin" not in user["per"]
         and "department" not in user["per"]
-        or user["id"] != request.publisher
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     notification = request.model_dump()
