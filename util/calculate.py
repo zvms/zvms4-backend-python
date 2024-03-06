@@ -132,11 +132,11 @@ async def calculate_normal_activities(
                 if member["status"] != "effective":
                     break
                 if member["mode"] == "on-campus":
-                    result["on-campus"] += activity["duration"]
+                    result["on-campus"] += member["duration"]
                 elif member["mode"] == "off-campus":
-                    result["off-campus"] += activity["duration"]
+                    result["off-campus"] += member["duration"]
                 else:
-                    result["social-practice"] += activity["duration"]
+                    result["social-practice"] += member["duration"]
                 break
 
     return result
