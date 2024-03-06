@@ -1,7 +1,9 @@
 import code
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request, Response
 from bson.objectid import ObjectId
 from typing import List
+
+from fastapi.exceptions import RequestValidationError
 from routers import (
     notifications_router,
     users_router,
@@ -39,6 +41,24 @@ app.include_router(
 app.include_router(groups_router.router, prefix="/api/group", tags=["groups"])
 app.include_router(trophies_router.router, prefix="/api/trophy", tags=["trophies"])
 app.include_router(exports_router.router, prefix="/api/export", tags=["exports"])
+
+
+# Custom exception handler for internal server errors
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    return Response(
+        status_code=500,
+        content={"message": "An internal server error occurred"},
+    )
+
+
+# Optional: Handle validation errors specifically, if desired
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return Response(
+        status_code=422,
+        content={"message": "Validation error", "details": exc.errors()},
+    )
 
 
 @app.get("/api/cert")
