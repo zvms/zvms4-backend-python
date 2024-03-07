@@ -14,9 +14,14 @@ async def calculate_awards(
 ) -> dict[str, float]:
     # Read trophy list with `members` field (array) containing user's id (._id field in members)
 
-    trophies = await db.zvms.trophies.find({"members._id": user}).to_list(None)
+    trophies = await db.zvms.trophies.find(
+        {"members._id": user}, {"members.$": True, "awards": True}
+    ).to_list(None)
     activities = await db.zvms.activities.find(
-        {"members._id": user, "type": "special", "special.classify": "prize"}
+        {"members._id": user, "type": "special", "special.classify": "prize"},
+        {
+            "members.$": True,
+        },
     ).to_list(None)
 
     awards = {
@@ -25,49 +30,41 @@ async def calculate_awards(
         "total": 0.0,
     }
     for activity in activities:
-        for member in activity["members"]:
-            if member["_id"] == user:
-                if member["status"] != "effective":
-                    break
-                if member["mode"] == "on-campus":
-                    awards["on-campus"] += member["duration"]
-                elif member["mode"] == "off-campus":
-                    awards["off-campus"] += member["duration"]
-                else:
-                    break
-                awards["total"] += member["duration"]
-                break
+        member = activity["members"][0]
+        if member["_id"] == user:
+            if member["mode"] == "on-campus":
+                awards["on-campus"] += member["duration"]
+            elif member["mode"] == "off-campus":
+                awards["off-campus"] += member["duration"]
+            awards["total"] += member["duration"]
+
     if awards["total"] >= full:
         # Average the duration of recorded time as time limit is reached
         awards["on-campus"] = round(awards["on-campus"] / awards["total"] * full, 1)
         awards["off-campus"] = full - awards["on-campus"]
         awards["total"] = full
         return awards
+
     # Calculate awards
     for trophy in trophies:
-        trophy_member = trophy["members"]
-        for member in trophy_member:
-            if member["_id"] == user:
-                if member["status"] != "effective":
+        member = trophy["members"][0]
+        award_name = trophy["award"]
+        for award in trophy["awards"]:
+            if award["name"] == award_name:
+                flag_ = False
+                duration = award["duration"]
+                if awards["total"] + award["duration"] > full:
+                    duration = full - awards["total"]
+                    flag_ = True
+                if member["mode"] == "on-campus":
+                    awards["on-campus"] += duration
+                elif member["mode"] == "off-campus":
+                    awards["off-campus"] += duration
+                else:
                     break
-                award_name = trophy["award"]
-                for award in trophy["awards"]:
-                    if award["name"] == award_name:
-                        flag_ = False
-                        duration = award["duration"]
-                        if awards["total"] + award["duration"] > full:
-                            duration = full - awards["total"]
-                            flag_ = True
-                        if member["mode"] == "on-campus":
-                            awards["on-campus"] += duration
-                        elif member["mode"] == "off-campus":
-                            awards["off-campus"] += duration
-                        else:
-                            break
-                        if flag_:
-                            return awards
-                        awards["total"] += award["duration"]
-                        break
+                if flag_:
+                    return awards
+                awards["total"] += award["duration"]
                 break
     return awards
 
@@ -80,8 +77,13 @@ async def calculate_special_activities(
         {
             "members._id": user,
             "type": "special",
+            "status": "effective",
+            "members.status": "effective",
             "special.classify": {"$ne": "prize"},
-        }
+        },
+        {
+            "members.$": True,
+        },
     ).to_list(None)
 
     result = {
@@ -94,17 +96,13 @@ async def calculate_special_activities(
         return result
 
     for activity in activities:
-        for member in activity["members"]:
-            if member["_id"] == user:
-                if member["status"] != "effective":
-                    break
-                if member["mode"] == "on-campus":
-                    result["on-campus"] += member["duration"]
-                elif member["mode"] == "off-campus":
-                    result["off-campus"] += member["duration"]
-                else:
-                    result["social-practice"] += member["duration"]
-                break
+        member = activity["members"][0]
+        if member["mode"] == "on-campus":
+            result["on-campus"] += member["duration"]
+        elif member["mode"] == "off-campus":
+            result["off-campus"] += member["duration"]
+        else:
+            result["social-practice"] += member["duration"]
 
     return result
 
@@ -114,7 +112,13 @@ async def calculate_normal_activities(
 ) -> dict[str, float]:
     # Read user's activity list
     activities = await db.zvms.activities.find(
-        {"members._id": user, "type": {"$ne": "special"}}
+        {
+            "status": "effective",
+            "members._id": user,
+            "members.status": "effective",
+            "type": {"$ne": "special"},
+        },
+        {"members.$": True},
     ).to_list(None)
 
     result = {
@@ -127,17 +131,13 @@ async def calculate_normal_activities(
         return result
 
     for activity in activities:
-        for member in activity["members"]:
-            if member["_id"] == user:
-                if member["status"] != "effective":
-                    break
-                if member["mode"] == "on-campus":
-                    result["on-campus"] += member["duration"]
-                elif member["mode"] == "off-campus":
-                    result["off-campus"] += member["duration"]
-                else:
-                    result["social-practice"] += member["duration"]
-                break
+        member = activity["members"][0]
+        if member["mode"] == "on-campus":
+            result["on-campus"] += member["duration"]
+        elif member["mode"] == "off-campus":
+            result["off-campus"] += member["duration"]
+        else:
+            result["social-practice"] += member["duration"]
 
     return result
 
@@ -169,14 +169,14 @@ async def calculate_time(
     normal = await calculate_normal_activities(user)
     result["on-campus"] += normal["on-campus"]
     result["off-campus"] += normal["off-campus"]
-    result["social-practice"] = normal["social-practice"]
+    result["social-practice"] += normal["social-practice"]
     result["total"] += (
         normal["on-campus"] + normal["off-campus"] + normal["social-practice"]
     )
     special = await calculate_special_activities(user)
     result["on-campus"] += special["on-campus"]
     result["off-campus"] += special["off-campus"]
-    result["social-practice"] = special["social-practice"]
+    result["social-practice"] += special["social-practice"]
     result["total"] += (
         special["on-campus"] + special["off-campus"] + special["social-practice"]
     )
