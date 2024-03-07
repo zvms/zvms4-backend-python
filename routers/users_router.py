@@ -153,6 +153,7 @@ async def read_user_activity(
     user=Depends(get_current_user),
     page: int = -1,
     perpage: int = 10,
+    query: str = "",
 ):
     """
     Return user's activities
@@ -163,17 +164,19 @@ async def read_user_activity(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     count = await db.zvms.activities.count_documents(
-        {"members._id": str(validate_object_id(user_oid))}
+        {"members._id": str(validate_object_id(user_oid))},
+        {"name": {"$regex": query, "$options": "i"}},
     )
     # Read user's activities
     all_activities = await db.zvms.activities.find(
-        { "members._id": str(validate_object_id(user_oid)) },
+        { "members._id": str(validate_object_id(user_oid)), "name": {"$regex": query, "$options": "i"}},
         {
             "name": 1,
             "date": 1,
             "_id": 1,
             "status": 1,
             "type": 1,
+            "special": 1,
             "members.$": 1,
         }
     ).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)

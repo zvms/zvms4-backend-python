@@ -205,6 +205,7 @@ async def read_activities(
     mode: str,
     page: int = -1,
     perpage: int = 10,
+    query: str = "",
     user=Depends(get_current_user),
 ):
     """
@@ -228,14 +229,16 @@ async def read_activities(
     if mode == "campus":
         # Read activities
         result = []
-        count = await db.zvms.activities.count_documents({})
-        activities = await db.zvms.activities.find({}, { 'members': False, 'description': False, 'registration': False }).sort("_id", -1).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
+        count = await db.zvms.activities.count_documents({"name": {"$regex": query, "$options": "i"}})
+        activities = await db.zvms.activities.find({
+            "name": {"$regex": query, "$options": "i"},
+        }, { 'name': True, 'status': True, 'date': True, 'type': True, 'special': True }).sort("_id", -1).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
         for activity in activities:
             activity["_id"] = str(activity["_id"])
             result.append(activity)
         return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
     elif mode == "class":
-        result, count = await get_activities_related_to_user(user["id"], page, perpage)
+        result, count = await get_activities_related_to_user(user["id"], page, perpage, query)
         return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
 
 
