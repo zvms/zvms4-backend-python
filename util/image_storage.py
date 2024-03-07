@@ -4,7 +4,7 @@ import requests
 import time
 import config
 import hashlib
-import image_backblaze as backblaze
+import util.image_backblaze as backblaze
 
 def randomString(length=16):
     import random
