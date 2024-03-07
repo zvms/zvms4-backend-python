@@ -165,7 +165,7 @@ async def read_user_activity(
 
     count = await db.zvms.activities.count_documents(
         {"members._id": str(validate_object_id(user_oid))},
-        {"name": {"$regex": query, "$options": "i"}},
+        # {"name": {"$regex": query, "$options": "i"}},
     )
     # Read user's activities
     all_activities = await db.zvms.activities.find(
