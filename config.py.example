@@ -1,0 +1,32 @@
+# config.py - 【图床】的所有配置，放在根目录下。
+# 什么？你说和 settings.py 是重复？那就是重复了呗，我懒得改了。以后再说，能跑就行。
+
+# 储存方案设定
+STORAGE = "" # 储存方式；这样一来，xuehai_url 可忽略
+XUEHAI_URL = "" # 学海OSS上传地址
+KEYID = "" # backblaze 的 keyid
+KEYNAME = "" # backblaze 的 keyname（好像没用）
+APPKEY = "" # backblaze 的 appkey
+BASEURL = "" # backblaze 的 baseurl
+CFURL = "" # CloudFlare 代理 backblaze 的 baseurl
+
+# 数据库设定
+DB_PATH = "" # 数据库路径
+
+# 图片参数设定
+UPLOAD_FOLDER = "" # 图片上传后的缓存文件夹
+PAGE_SIZE = 10 # 获取图片列表时，默认的每页图片数量
+PAGE_NUM = 1 # 获取图片列表时，默认的页码
+MAX_SIZE = 3 * 1024 * 1024 # 上传图片最大尺寸，否则压缩
+
+# 图片处理拓展设定
+CHECK_ENABLED = False # 图片审查是否启用
+KEYWORDS_GENERATE_ENABLED = False # 是否开启关键词生成
+HF_ENABLED = False # 图生文是否启用
+HF_URL = "" # HF模型服务地址
+
+# 服务设定
+SERVERURL = "" # 服务器运行地址
+SUPERADMINTOKEN = ""
+host = "" # 服务监听地址
+port = 6666 # 服务监听端口
