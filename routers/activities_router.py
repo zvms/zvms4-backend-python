@@ -228,14 +228,15 @@ async def read_activities(
     if mode == "campus":
         # Read activities
         result = []
+        count = await db.zvms.activities.count_documents({})
         activities = await db.zvms.activities.find({}, { 'members': False, 'description': False, 'registration': False }).sort("_id", -1).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
         for activity in activities:
             activity["_id"] = str(activity["_id"])
             result.append(activity)
-        return {"status": "ok", "code": 200, "data": result}
+        return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
     elif mode == "class":
-        result = await get_activities_related_to_user(user["id"], page, perpage)
-        return {"status": "ok", "code": 200, "data": result}
+        result, count = await get_activities_related_to_user(user["id"], page, perpage)
+        return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
 
 
 @router.get("/{activity_oid}")

@@ -162,6 +162,9 @@ async def read_user_activity(
     if "admin" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
+    count = await db.zvms.activities.count_documents(
+        {"members._id": str(validate_object_id(user_oid))}
+    )
     # Read user's activities
     all_activities = await db.zvms.activities.find(
         { "members._id": str(validate_object_id(user_oid)) },
@@ -182,6 +185,9 @@ async def read_user_activity(
         "status": "ok",
         "code": 200,
         "data": all_activities,
+        "metadata": {
+            "size": count,
+        }
     }
 
 

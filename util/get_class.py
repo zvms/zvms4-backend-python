@@ -6,7 +6,7 @@ from utils import validate_object_id
 async def get_activities_related_to_user(user_oid: str, page: int = -1, perpage: int = 10):
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
     if not user:
-        return HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found")
 
     user_group = user["group"]
     class_id = None
@@ -16,24 +16,28 @@ async def get_activities_related_to_user(user_oid: str, page: int = -1, perpage:
     }, "type": "class"})
 
     if grouping is None:
-        return HTTPException(status_code=404, detail="User not in any class")
+        raise HTTPException(status_code=404, detail="User not in any class")
 
     class_id = grouping["_id"]
 
     if not class_id:
-        return HTTPException(status_code=404, detail="User not in any class")
+        raise HTTPException(status_code=404, detail="User not in any class")
 
     users = await db.zvms.users.find({"group": str(class_id)}).to_list(None)
+
+    count = await db.zvms.activities.count_documents({
+        "members._id": {"$in": [str(user["_id"]) for user in users]}
+    })
 
     activities = await db.zvms.activities.find(
         {"members._id": {"$in": [str(user["_id"]) for user in users]}},
         {"name": True, "date": True, "status": True, "type": True}
-    ).sort("_id", -1).skip(0 if page == -1 else page * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
+    ).sort("_id", -1).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
 
     for activity in activities:
         activity["_id"] = str(activity["_id"])
 
-    return activities
+    return activities, count
 
 
 async def get_user_classname(user_id: str):
