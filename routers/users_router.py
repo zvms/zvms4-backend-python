@@ -144,6 +144,8 @@ async def read_user_activity(
     user_oid: str,
     registration: bool = False,  # 是否返回报名的义工, parameters
     user=Depends(get_current_user),
+    page: int = -1,
+    perpage: int = 10,
 ):
     """
     Return user's activities
@@ -164,7 +166,7 @@ async def read_user_activity(
             "type": 1,
             "members.$": 1,
         }
-    ).to_list(None)
+    ).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
 
     for activity in all_activities:
         activity["_id"] = str(activity["_id"])

@@ -203,6 +203,8 @@ async def change_activity_status(
 async def read_activities(
     type: str | None,
     mode: str,
+    page: int = -1,
+    perpage: int = 10,
     user=Depends(get_current_user),
 ):
     """
@@ -226,13 +228,13 @@ async def read_activities(
     if mode == "campus":
         # Read activities
         result = []
-        activities = await db.zvms.activities.find({}, { 'members': False }).to_list(None)
+        activities = await db.zvms.activities.find({}, { 'members': False, 'description': False, 'registration': False }).sort("_id", -1).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
         for activity in activities:
             activity["_id"] = str(activity["_id"])
             result.append(activity)
         return {"status": "ok", "code": 200, "data": result}
     elif mode == "class":
-        result = await get_activities_related_to_user(user["id"])
+        result = await get_activities_related_to_user(user["id"], page, perpage)
         return {"status": "ok", "code": 200, "data": result}
 
 
