@@ -61,6 +61,7 @@ async def get_trophies(user=Depends(get_current_user)):
         "data": result,
     }
 
+
 @router.get("/{trophy_oid}")
 async def get_trophy(trophy_oid: str, user=Depends(get_current_user)):
     """
@@ -226,7 +227,9 @@ async def delete_trophy_member(
         "admin" not in user["per"]
         and not ("department" in user["per"] and user["id"] == trophy["creator"])
         and member_oid != user["id"]
-        and not ("secretary" in user["per"] and is_in_a_same_class(user["id"], member_oid))
+        and not (
+            "secretary" in user["per"] and is_in_a_same_class(user["id"], member_oid)
+        )
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     # Delete trophy member

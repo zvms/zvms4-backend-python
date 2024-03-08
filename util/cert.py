@@ -100,6 +100,7 @@ async def validate_by_cert(id: str, cert: str, type: Optional[str] = "long"):
     except:
         raise HTTPException(status_code=404, detail="User not found")
 
+
 async def get_hashed_password_by_cert(cert: str):
     auth_field = json.loads(rsa_decrypt(cert))
     time = auth_field["time"]

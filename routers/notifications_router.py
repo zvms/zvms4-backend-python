@@ -13,10 +13,7 @@ async def create_notification(request: Notification, user=Depends(get_current_us
     Create Notification
     """
     # Create notification
-    if (
-        "admin" not in user["per"]
-        and "department" not in user["per"]
-    ):
+    if "admin" not in user["per"] and "department" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
     notification = request.model_dump()
     notification["global"] = notification["global_"]

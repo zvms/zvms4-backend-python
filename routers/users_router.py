@@ -257,14 +257,21 @@ async def read_notifications(user_oid: str, user=Depends(get_current_user)):
 async def read_images(
     user_oid: str,
     user=Depends(get_current_user),
+    page: int = 1,
+    perpage: int = 10,
 ):
     if user["id"] != user_oid and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
-    user = await db.zvms.images.find(
-        {
-            "uploader": user_oid,
-        }
-    ).to_list(None)
+    user = (
+        await db.zvms.images.find(
+            {
+                "uploader": user_oid,
+            }
+        )
+        .skip(0 if page == -1 else (page - 1) * perpage)
+        .limit(0 if page == -1 else perpage)
+        .to_list(None if page == -1 else perpage)
+    )
     return {
         "status": "ok",
         "code": 200,

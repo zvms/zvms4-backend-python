@@ -60,7 +60,7 @@ async def get_group(group_id: str):
 
     result = await db.zvms.groups.find_one({"_id": ObjectId(group_id)})
 
-    result['_id'] = str(result['_id'])
+    result["_id"] = str(result["_id"])
 
     return {
         "status": "ok",

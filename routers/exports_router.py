@@ -85,13 +85,17 @@ async def create_export(export: Export, current_user: dict = Depends(get_current
 async def get_export(export_id: str):
     for export in exports:
         if export.id == export_id:
-            result = {"status": "ok", "code": 200, "data": {
-                "id": export.id,
-                "status": export.status,
-                "url": export.url,
-                "format": export.format,
-                "error": export.error
-            }}
+            result = {
+                "status": "ok",
+                "code": 200,
+                "data": {
+                    "id": export.id,
+                    "status": export.status,
+                    "url": export.url,
+                    "format": export.format,
+                    "error": export.error,
+                },
+            }
             if export.status == ExportStatus.completed:
                 exports.remove(export)
             return result
