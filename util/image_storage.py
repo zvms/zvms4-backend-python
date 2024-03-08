@@ -38,7 +38,7 @@ def upload(path):
             fileId = xuehai(f, md5)
         return fileId
     elif config.STORAGE == "backblaze":
-        backblaze.bbUpload(path)
+        return backblaze.bbUpload(path)
     else:
         return None
 

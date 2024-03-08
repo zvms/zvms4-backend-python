@@ -31,6 +31,7 @@ def bbUpload(filePath):
         file_name=getRealname(filePath),
         file_info=metadata,
     )
+    assert isinstance(uploaded_file, b2.FileVersion)
     return uploaded_file.id_
     # return (b2_api.get_download_url_for_fileid(uploaded_file.id_))
 
