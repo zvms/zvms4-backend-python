@@ -168,18 +168,26 @@ async def read_user_activity(
         # {"name": {"$regex": query, "$options": "i"}},
     )
     # Read user's activities
-    all_activities = await db.zvms.activities.find(
-        { "members._id": str(validate_object_id(user_oid)), "name": {"$regex": query, "$options": "i"}},
-        {
-            "name": 1,
-            "date": 1,
-            "_id": 1,
-            "status": 1,
-            "type": 1,
-            "special": 1,
-            "members.$": 1,
-        }
-    ).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
+    all_activities = (
+        await db.zvms.activities.find(
+            {
+                "members._id": str(validate_object_id(user_oid)),
+                "name": {"$regex": query, "$options": "i"},
+            },
+            {
+                "name": 1,
+                "date": 1,
+                "_id": 1,
+                "status": 1,
+                "type": 1,
+                "special": 1,
+                "members.$": 1,
+            },
+        )
+        .skip(0 if page == -1 else (page - 1) * perpage)
+        .limit(0 if page == -1 else perpage)
+        .to_list(None if page == -1 else perpage)
+    )
 
     for activity in all_activities:
         activity["_id"] = str(activity["_id"])
@@ -190,7 +198,7 @@ async def read_user_activity(
         "data": all_activities,
         "metadata": {
             "size": count,
-        }
+        },
     }
 
 
@@ -212,11 +220,11 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
         "status": "ok",
         "code": 200,
         "data": {
-            'onCampus': result['on-campus'],
-            'offCampus': result['off-campus'],
-            'socialPractice': result['social-practice'],
-            'trophy': result['trophy'],
-            'total': result['total'],
+            "onCampus": result["on-campus"],
+            "offCampus": result["off-campus"],
+            "socialPractice": result["social-practice"],
+            "trophy": result["trophy"],
+            "total": result["total"],
         },
     }
 
@@ -245,111 +253,20 @@ async def read_notifications(user_oid: str, user=Depends(get_current_user)):
     }
 
 
-@router.get("/{user_oid}/imgtoken") # deprecated
-async def get_imgtoken(
-    user_oid: str,
-    user=Depends(get_current_user),
-):
-    # 根据用户的权限和 ID 获取图片上传 Token
-    per = 1  # 管理员权限
-    if "admin" not in user["per"] and user["id"] != validate_object_id(user_oid):
-        per = 0  # 普通用户
-    token = get_img_token(user_oid, per)
-    return {
-        "status": "ok",
-        "code": 200,
-        "data": token,
-    }
-
-@router.put("/image")
-async def upload_image(
-    request: Request,
-    user=Depends(get_current_user),
-):
-    # 上传图片
-    form = await request.form()
-    image = form.get("image")
-    if not isinstance(image, UploadFile):
-        raise HTTPException(status_code=400, detail="No image file provided")
-    filename = randomString() + '.jpg'
-    path = os.path.join(config.UPLOAD_FOLDER, filename)
-    with open(path, 'wb') as buffer:
-        buffer.write(await image.read())
-    image_process.compress(path, path, config.MAX_SIZE)
-    fileId = image_storage.upload(path)
-    if not fileId:
-        raise HTTPException(status_code=500, detail="Image storage failed")
-    timestamp = int(time.time())
-    # 添加到用户信息
-    db.zvms.users.update_one(
-        {"_id": validate_object_id(user["id"])},
-        {"$push": {"images": {"fileId": fileId, "timestamp": timestamp}}},
-    )
-    # 清空缓存
-    if os.path.exists(path):
-        os.remove(path)
-    return {
-        "status": "ok",
-        "code": 200,
-        "data": fileId,
-    }
-
-@router.get("/image/show/{fileId}")
-async def show_image(
-    fileId: str,
-    user=Depends(get_current_user),
-):
-    # 判断用户是否登录
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    # 获取图片
-    image = image_storage.getBBImage(fileId)
-    if image.status_code != 200:
-        raise HTTPException(status_code=image.status_code, detail=image.text)
-    else:
-        def generate():
-            for chunk in image.iter_content(chunk_size=1024):
-                yield chunk
-        return StreamingResponse(generate(), media_type="image/jpeg")
-
-@router.get("/image/{user_oid}")
+@router.get("/{user_oid}/image")
 async def read_images(
     user_oid: str,
     user=Depends(get_current_user),
 ):
-    # 获取用户的图片列表
     if user["id"] != user_oid and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
-    user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
+    user = await db.zvms.images.find(
+        {
+            "uploader": user_oid,
+        }
+    ).to_list(None)
     return {
         "status": "ok",
         "code": 200,
         "data": user["images"],
     }
-
-@router.delete("/image/{fileId}")
-async def delete_image(
-    fileId: str,
-    user=Depends(get_current_user),
-):
-    # 删除图片
-    flag = False
-    user = await db.zvms.users.find_one({"_id": validate_object_id(user["id"])})
-    images = user["images"]
-    for image in images:
-        if image["fileId"] == fileId:
-            images.remove(image)
-            image_storage.remove(fileId)
-            flag = True
-            break
-    await db.zvms.users.update_one(
-        {"_id": validate_object_id(user["id"])},
-        {"$set": {"images": images}},
-    )
-    if flag:
-        return {
-            "status": "ok",
-            "code": 200,
-        }
-    else:
-        raise HTTPException(status_code=404, detail="Image not found")
