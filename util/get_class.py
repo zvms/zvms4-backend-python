@@ -3,7 +3,9 @@ from database import db
 from utils import validate_object_id
 
 
-async def get_activities_related_to_user(user_oid: str, page: int = -1, perpage: int = 10, query: str = ""):
+async def get_activities_related_to_user(
+    user_oid: str, page: int = -1, perpage: int = 10, query: str = ""
+):
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -11,9 +13,12 @@ async def get_activities_related_to_user(user_oid: str, page: int = -1, perpage:
     user_group = user["group"]
     class_id = None
 
-    grouping = await db.zvms.groups.find_one({"_id": {
-        "$in": [validate_object_id(group) for group in user_group]
-    }, "type": "class"})
+    grouping = await db.zvms.groups.find_one(
+        {
+            "_id": {"$in": [validate_object_id(group) for group in user_group]},
+            "type": "class",
+        }
+    )
 
     if grouping is None:
         raise HTTPException(status_code=404, detail="User not in any class")
@@ -25,15 +30,26 @@ async def get_activities_related_to_user(user_oid: str, page: int = -1, perpage:
 
     users = await db.zvms.users.find({"group": str(class_id)}).to_list(None)
 
-    count = await db.zvms.activities.count_documents({
-        "members._id": {"$in": [str(user["_id"]) for user in users]},
-        "name": {"$regex": query, "$options": "i"}
-    })
+    count = await db.zvms.activities.count_documents(
+        {
+            "members._id": {"$in": [str(user["_id"]) for user in users]},
+            "name": {"$regex": query, "$options": "i"},
+        }
+    )
 
-    activities = await db.zvms.activities.find(
-        {"members._id": {"$in": [str(user["_id"]) for user in users]}, "name": {"$regex": query, "$options": "i"}},
-        {"name": True, "date": True, "status": True, "type": True, "special": True}
-    ).sort("_id", -1).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
+    activities = (
+        await db.zvms.activities.find(
+            {
+                "members._id": {"$in": [str(user["_id"]) for user in users]},
+                "name": {"$regex": query, "$options": "i"},
+            },
+            {"name": True, "date": True, "status": True, "type": True, "special": True},
+        )
+        .sort("_id", -1)
+        .skip(0 if page == -1 else (page - 1) * perpage)
+        .limit(0 if page == -1 else perpage)
+        .to_list(None if page == -1 else perpage)
+    )
 
     for activity in activities:
         activity["_id"] = str(activity["_id"])

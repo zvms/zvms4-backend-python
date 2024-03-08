@@ -6,18 +6,13 @@ from typings.activity import (
     MemberActivityStatus,
     SpecialActivityClassify,
 )
-from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Depends, Form, Request
-from typing import List
+from fastapi import APIRouter, HTTPException, Depends
 from util.get_class import get_activities_related_to_user
 from util.group import is_in_a_same_class
-from utils import compulsory_temporary_token, get_current_user, validate_object_id, timestamp_change
-from datetime import datetime, timedelta, timezone
-from jose import JWTError, jwt
+from utils import compulsory_temporary_token, get_current_user, validate_object_id
+from datetime import datetime
 from database import db
-from pydantic import BaseModel, Field
-from typing import Optional
-import settings
+from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -101,6 +96,7 @@ async def create_activity(payload: Activity, user=Depends(get_current_user)):
 class PutDescription(BaseModel):
     description: str
 
+
 @router.put("/{activity_oid}/description")
 async def change_activity_description(
     activity_oid: str, payload: PutDescription, user=Depends(get_current_user)
@@ -133,6 +129,7 @@ async def change_activity_description(
 class PutActivityName(BaseModel):
     name: str
 
+
 @router.put("/{activity_oid}/name")
 async def change_activity_title(
     activity_oid: str, payload: PutActivityName, user=Depends(get_current_user)
@@ -156,8 +153,10 @@ async def change_activity_title(
         "code": 200,
     }
 
+
 class PutActivityStatus(BaseModel):
     status: str
+
 
 @router.put("/{activity_oid}/status")
 async def change_activity_status(
@@ -229,17 +228,46 @@ async def read_activities(
     if mode == "campus":
         # Read activities
         result = []
-        count = await db.zvms.activities.count_documents({"name": {"$regex": query, "$options": "i"}})
-        activities = await db.zvms.activities.find({
-            "name": {"$regex": query, "$options": "i"},
-        }, { 'name': True, 'status': True, 'date': True, 'type': True, 'special': True }).sort("_id", -1).skip(0 if page == -1 else (page - 1) * perpage).limit(0 if page == -1 else perpage).to_list(None if page == -1 else perpage)
+        count = await db.zvms.activities.count_documents(
+            {"name": {"$regex": query, "$options": "i"}}
+        )
+        activities = (
+            await db.zvms.activities.find(
+                {
+                    "name": {"$regex": query, "$options": "i"},
+                },
+                {
+                    "name": True,
+                    "status": True,
+                    "date": True,
+                    "type": True,
+                    "special": True,
+                },
+            )
+            .sort("_id", -1)
+            .skip(0 if page == -1 else (page - 1) * perpage)
+            .limit(0 if page == -1 else perpage)
+            .to_list(None if page == -1 else perpage)
+        )
         for activity in activities:
             activity["_id"] = str(activity["_id"])
             result.append(activity)
-        return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
+        return {
+            "status": "ok",
+            "code": 200,
+            "data": result,
+            "metadata": {"size": count},
+        }
     elif mode == "class":
-        result, count = await get_activities_related_to_user(user["id"], page, perpage, query)
-        return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
+        result, count = await get_activities_related_to_user(
+            user["id"], page, perpage, query
+        )
+        return {
+            "status": "ok",
+            "code": 200,
+            "data": result,
+            "metadata": {"size": count},
+        }
 
 
 @router.get("/{activity_oid}")
@@ -253,17 +281,19 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
         {
             "members.impression": False,
             "members.history": False,
-        }
+        },
     )
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    activity['_id'] = str(activity['_id'])
+    activity["_id"] = str(activity["_id"])
     return {"status": "ok", "code": 200, "data": activity}
 
 
 @router.post("/{activity_oid}/member")
-async def user_activity_signup(activity_oid: str, member: ActivityMember, user=Depends(get_current_user)):
+async def user_activity_signup(
+    activity_oid: str, member: ActivityMember, user=Depends(get_current_user)
+):
     """
     Append user to activity
     If user doesn't have permission, regard as a registration. Check the register limit, if full, raise 403.
@@ -279,17 +309,30 @@ async def user_activity_signup(activity_oid: str, member: ActivityMember, user=D
 
     # Check available if user doesn't have any other permission
     _flag = False
-    if 'secretary' not in user["per"] and 'admin' not in user["per"] and 'department' not in user['per']:
+    if (
+        "secretary" not in user["per"]
+        and "admin" not in user["per"]
+        and "department" not in user["per"]
+    ):
         raise HTTPException(status_code=403, detail="Permission denied.")
-    elif 'secretary' in user["per"] and 'department' not in user["per"]:
+    elif "secretary" in user["per"] and "department" not in user["per"]:
         member.status = MemberActivityStatus.draft
         if not is_in_a_same_class(user["id"], member.id):
-            raise HTTPException(status_code=403, detail="Permission denied, not in class.")
-        if activity['type'] == ActivityType.special:
-            raise HTTPException(status_code=403, detail="Permission denied, cannot be appended to this activity.")
-    elif 'department' in user["per"] or 'admin' in user["per"]:
-        print('this one')
-        status = MemberActivityStatus.effective if activity['type'] == ActivityType.special else MemberActivityStatus.draft
+            raise HTTPException(
+                status_code=403, detail="Permission denied, not in class."
+            )
+        if activity["type"] == ActivityType.special:
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied, cannot be appended to this activity.",
+            )
+    elif "department" in user["per"] or "admin" in user["per"]:
+        print("this one")
+        status = (
+            MemberActivityStatus.effective
+            if activity["type"] == ActivityType.special
+            else MemberActivityStatus.draft
+        )
         member.status = status
     else:
         raise HTTPException(status_code=403, detail="Permission denied.")
@@ -301,11 +344,7 @@ async def user_activity_signup(activity_oid: str, member: ActivityMember, user=D
     # Append user to activity
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid)},
-        {
-            "$addToSet": {
-                "members": diction
-            }
-        },
+        {"$addToSet": {"members": diction}},
     )
 
     return {
@@ -315,21 +354,26 @@ async def user_activity_signup(activity_oid: str, member: ActivityMember, user=D
 
 
 @router.get("/{activity_oid}/member/{uid}")
-async def read_activity_user(activity_oid: str, uid: str, user=Depends(get_current_user)):
-    if 'department' not in user['per'] and 'admin' not in user['per'] and 'auditor' not in user['per'] and 'inspector' not in user['per'] and not ('secretary' in user['per'] and is_in_a_same_class(user['id'], uid) and user['id'] != uid):
-        raise HTTPException(status_code=403, detail='Permission denined.')
-    activity = await db.zvms.activities.find({
-        "_id": validate_object_id(activity_oid),
-        "members._id": uid
-    }, {
-        "members.$": 1,
-        "_id": 0
-    }).to_list(None)
-    return {
-        "status": "ok",
-        "code": 200,
-        "data": activity[0]['members'][0]
-    }
+async def read_activity_user(
+    activity_oid: str, uid: str, user=Depends(get_current_user)
+):
+    if (
+        "department" not in user["per"]
+        and "admin" not in user["per"]
+        and "auditor" not in user["per"]
+        and "inspector" not in user["per"]
+        and not (
+            "secretary" in user["per"]
+            and await is_in_a_same_class(user["id"], uid)
+            and user["id"] != uid
+        )
+    ):
+        raise HTTPException(status_code=403, detail="Permission denined.")
+    activity = await db.zvms.activities.find(
+        {"_id": validate_object_id(activity_oid), "members._id": uid},
+        {"members.$": 1, "_id": 0},
+    ).to_list(None)
+    return {"status": "ok", "code": 200, "data": activity[0]["members"][0]}
 
 
 @router.delete("/{activity_oid}/member/{uid}")
@@ -353,7 +397,11 @@ async def user_activity_signoff(
     if not _flag:
         raise HTTPException(status_code=400, detail="User not in activity")
     # Check user permission
-    if user["id"] != str(validate_object_id(uid)) and ("admin" not in user["per"] and "department" not in user["per"]) and ('secretary' not in user["per"] or not is_in_a_same_class(user["id"], uid)):
+    if (
+        user["id"] != str(validate_object_id(uid))
+        and ("admin" not in user["per"] and "department" not in user["per"])
+        and ("secretary" not in user["per"] or not is_in_a_same_class(user["id"], uid))
+    ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # Remove user from activity
