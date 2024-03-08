@@ -362,11 +362,8 @@ async def read_activity_user(
         and "admin" not in user["per"]
         and "auditor" not in user["per"]
         and "inspector" not in user["per"]
-        and not (
-            "secretary" in user["per"]
-            and await is_in_a_same_class(user["id"], uid)
-            and user["id"] != uid
-        )
+        and ("secretary" not in user["per"])
+        and user["id"] != str(validate_object_id(uid))
     ):
         raise HTTPException(status_code=403, detail="Permission denined.")
     activity = await db.zvms.activities.find(
