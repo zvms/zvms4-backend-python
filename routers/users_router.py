@@ -240,26 +240,48 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
 
 
 @router.get("/{user_oid}/notification")
-async def read_notifications(user_oid: str, user=Depends(get_current_user)):
+async def read_notifications(
+    user_oid: str, page: int = 1, perpage: int = 10, user=Depends(get_current_user)
+):
     """
     Get Notifications
     """
     # Get notification list
-    notifications = await db.zvms.notifications.find().to_list(2000)
+    count = await db.zvms.notifications.count_documents(
+        {
+            "$or": [
+                {"receivers": str(user_oid)},
+                {"global": True},
+            ]
+        }
+    )
+    notifications = (
+        await db.zvms.notifications.find(
+            {
+                "$or": [
+                    {"receivers": str(user_oid)},
+                    {"global": True},
+                ]
+            }
+        )
+        .sort("_id", -1)
+        .skip(0 if page == -1 else (page - 1) * perpage)
+        .limit(0 if page == -1 else perpage)
+        .to_list(None if page == -1 else perpage)
+    )
 
     if user_oid != user["id"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    result = []
     for notification in notifications:
         notification["_id"] = str(notification["_id"])
-        if str(user_oid) in notification["receivers"] or notification["global"]:
-            result.append(notification)
-
     return {
         "status": "ok",
         "code": 200,
-        "data": result,
+        "data": notifications,
+        "metadata": {
+            "size": count,
+        },
     }
 
 

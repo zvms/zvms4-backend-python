@@ -18,6 +18,8 @@ async def create_notification(request: Notification, user=Depends(get_current_us
     notification = request.model_dump()
     notification["global"] = notification["global_"]
     notification["publisher"] = user["id"]
+    del notification["global_"]
+    del notification["id"]
     for i in notification["receivers"]:
         validate_object_id(i)
     result = await db.zvms.notifications.insert_one(notification)
@@ -29,20 +31,32 @@ async def create_notification(request: Notification, user=Depends(get_current_us
 
 
 @router.get("")
-async def get_notifications(user=Depends(get_current_user)):
+async def get_notifications(
+    page: int = 1, perpage: int = 10, user=Depends(get_current_user)
+):
     """
     Get Notifications
     """
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
     # Get notifications
-    result = await db.zvms.notifications.find().to_list(1000)
+    count = await db.zvms.notifications.count_documents({})
+    result = (
+        await db.zvms.notifications.find()
+        .sort("_id", -1)
+        .skip(0 if page == -1 else (page - 1) * perpage)
+        .limit(0 if page == -1 else perpage)
+        .to_list(None if page == -1 else perpage)
+    )
     for i in result:
         i["_id"] = str(i["_id"])
     return {
         "status": "ok",
         "code": 200,
         "data": result,
+        "metadata": {
+            "size": count,
+        }
     }
 
 
