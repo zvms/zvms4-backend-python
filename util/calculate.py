@@ -70,6 +70,8 @@ async def calculate_awards(
         "total": 0.0,
     }
     for activity in activities:
+        if len(activity["members"]) == 0:
+            continue
         member = activity["members"][0]
         if member["_id"] == user:
             if member["mode"] == "on-campus":
@@ -87,6 +89,8 @@ async def calculate_awards(
 
     # Calculate awards
     for trophy in trophies:
+        if len(trophy["members"]) == 0:
+            continue
         member = trophy["members"][0]
         award_name = trophy["award"]
         for award in trophy["awards"]:
@@ -147,6 +151,8 @@ async def calculate_special_activities(
         return result
 
     for activity in activities:
+        if len(activity["members"]) == 0:
+            continue
         member = activity["members"][0]
         if member["mode"] == "on-campus":
             result["on-campus"] += member["duration"]
@@ -201,6 +207,8 @@ async def calculate_normal_activities(
         return result
 
     for activity in activities:
+        if len(activity["members"]) == 0:
+            continue
         member = activity["members"][0]
         if member["mode"] == "on-campus":
             result["on-campus"] += member["duration"]
