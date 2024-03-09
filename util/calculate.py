@@ -14,15 +14,50 @@ async def calculate_awards(
 ) -> dict[str, float]:
     # Read trophy list with `members` field (array) containing user's id (._id field in members)
 
-    trophies = await db.zvms.trophies.find(
-        {"members._id": user}, {"members.$": True, "awards": True}
-    ).to_list(None)
-    activities = await db.zvms.activities.find(
-        {"members._id": user, "type": "special", "special.classify": "prize"},
+    inject_trophies = [
         {
-            "members.$": True,
+            "$match": {
+                "members._id": user,
+            }
         },
-    ).to_list(None)
+        {
+            "$project": {
+                "members": {
+                    "$filter": {
+                        "input": "$members",
+                        "as": "member",
+                        "cond": {"$eq": ["$$member._id", user]},
+                    }
+                },
+                "awards": True,
+                "award": True,
+            }
+        },
+    ]
+
+    trophies = await db.zvms.trophies.aggregate(inject_trophies).to_list(None)
+
+    inject_activities = [
+        {
+            "$match": {
+                "members._id": user,
+                "type": "special",
+                "special.classify": "prize",
+            }
+        },
+        {
+            "$project": {
+                "members": {
+                    "$filter": {
+                        "input": "$members",
+                        "as": "member",
+                        "cond": {"$eq": ["$$member._id", user]},
+                    }
+                },
+            }
+        },
+    ]
+    activities = await db.zvms.activities.aggregate(inject_activities).to_list(None)
 
     awards = {
         "on-campus": 0.0,
@@ -73,18 +108,30 @@ async def calculate_special_activities(
     user: str, activities: Optional[list[dict]] = []
 ) -> dict[str, float]:
     # Read user's activity list
-    activities = await db.zvms.activities.find(
+    print(user)
+    inject = [
         {
-            "members._id": user,
-            "type": "special",
-            "status": "effective",
-            "members.status": "effective",
-            "special.classify": {"$ne": "prize"},
+            "$match": {
+                "members._id": user,
+                "type": "special",
+                "status": "effective",
+                "members.status": "effective",
+                "special.classify": {"$ne": "prize"},
+            }
         },
         {
-            "members.$": True,
+            "$project": {
+                "members": {
+                    "$filter": {
+                        "input": "$members",
+                        "as": "member",
+                        "cond": {"$eq": ["$$member._id", user]},
+                    }
+                }
+            }
         },
-    ).to_list(None)
+    ]
+    activities = await db.zvms.activities.aggregate(inject).to_list(None)
 
     result = {
         "on-campus": 0.0,
@@ -111,15 +158,29 @@ async def calculate_normal_activities(
     user: str, activities: Optional[list[dict]] = []
 ) -> dict[str, float]:
     # Read user's activity list
-    activities = await db.zvms.activities.find(
+
+    inject = [
         {
-            "status": "effective",
-            "members._id": user,
-            "members.status": "effective",
-            "type": {"$ne": "special"},
+            "$match": {
+                "members._id": user,
+                "status": "effective",
+                "members.status": "effective",
+                "type": {"$ne": "special"},
+            }
         },
-        {"members.$": True},
-    ).to_list(None)
+        {
+            "$project": {
+                "members": {
+                    "$filter": {
+                        "input": "$members",
+                        "as": "member",
+                        "cond": {"$eq": ["$$member._id", user]},
+                    }
+                }
+            }
+        },
+    ]
+    activities = await db.zvms.activities.aggregate(inject).to_list(None)
 
     result = {
         "on-campus": 0.0,
