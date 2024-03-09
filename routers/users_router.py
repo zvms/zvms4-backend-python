@@ -82,12 +82,6 @@ async def read_users(query: str):
     """
     Query users
     """
-    logined = False
-    try:
-        user = await Depends(get_current_user)
-        logined = True
-    except:
-        print("No user")
     result = (
         await db.zvms["users"]
         .find(
@@ -104,7 +98,7 @@ async def read_users(query: str):
             },
         )
         .sort({"id": 1})
-        .to_list(10 if logined else 1)
+        .to_list(5)
     )
 
     for user in result:
