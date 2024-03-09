@@ -113,7 +113,6 @@ async def calculate_special_activities(
     user: str, activities: Optional[list[dict]] = []
 ) -> dict[str, float]:
     # Read user's activity list
-    print(user)
     inject = [
         {
             "$match": {

@@ -402,14 +402,9 @@ async def user_activity_signoff(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     # Remove user from activity
-    target = []
-    for member in activity["members"]:
-        if member["_id"] != uid:
-            target.append(member)
-
-    # Update activity
-    result = await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid)}, {"$set": {"members": target}}
+    await db.zvms.activities.update_one(
+        {"_id": validate_object_id(activity_oid)},
+        {"$pull": {"members": {"_id": uid}}},
     )
 
     return {
@@ -569,4 +564,103 @@ async def delete_activity(activity_oid: str, user=Depends(compulsory_temporary_t
     return {
         "status": "ok",
         "code": 200,
+    }
+
+
+class PostImage(BaseModel):
+    image: str
+
+
+@router.post("/{activity_oid}/member/{user_oid}/image")
+async def add_image_to_activity(
+    activity_oid: str, user_oid: str, payload: PostImage, user=Depends(get_current_user)
+):
+    """
+    Add image to activity
+    """
+    if user["id"] != user_oid:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    image_id = payload.image
+
+    image = await db.zvms.images.find_one({"_id": validate_object_id(image_id)})
+
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid), "members._id": user_oid}
+    )
+
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    await db.zvms.activities.update_one(
+        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
+        {"$addToSet": {"members.$.images": image_id}},
+    )
+
+    # Add image to activity
+    return {
+        "status": "ok",
+        "code": 201,
+    }
+
+
+@router.delete("/{activity_oid}/member/{user_oid}/image/{image_id}")
+async def remove_image_from_activity(
+    activity_oid: str, user_oid: str, image_id: str, user=Depends(get_current_user)
+):
+    """
+    Remove image from activity
+    """
+
+    activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid), "members._id": user_oid}
+    )
+
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    await db.zvms.activities.update_one(
+        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
+        {"$pull": {"members.$.images": image_id}},
+    )
+
+    # Remove image from activity
+    return {
+        "status": "ok",
+        "code": 200,
+    }
+
+
+@router.get("/{activity_oid}/member/{user_oid}/image")
+async def read_activity_images(
+    activity_oid: str, user_oid: str, user=Depends(get_current_user)
+):
+    """
+    Return activity images
+    """
+
+    script = [
+        {
+            "$match": {
+                "_id": validate_object_id(activity_oid),
+                "members._id": user_oid,
+            }
+        },
+        {"$unwind": "$members"},
+        {"$match": {"members._id": user_oid}},
+        {"$project": {"members.images": 1, "_id": 0}},
+    ]
+
+    result = await db.zvms.activities.aggregate(script).to_list(None)
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": result[0]["members"]["images"],
     }
