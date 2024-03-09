@@ -252,7 +252,8 @@ async def read_notifications(
             "$or": [
                 {"receivers": str(user_oid)},
                 {"global": True},
-            ]
+            ],
+            "expire": {"$gt": int(time.time())},
         }
     )
     notifications = (
@@ -261,7 +262,8 @@ async def read_notifications(
                 "$or": [
                     {"receivers": str(user_oid)},
                     {"global": True},
-                ]
+                ],
+                "expire": {"$gt": int(time.time())},
             }
         )
         .sort("_id", -1)
