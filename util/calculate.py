@@ -26,7 +26,12 @@ async def calculate_awards(
                     "$filter": {
                         "input": "$members",
                         "as": "member",
-                        "cond": {"$eq": ["$$member._id", user]},
+                        "cond": {
+                            "$and": [
+                                {"$eq": ["$$member._id", user]},
+                                {"$eq": ["$$member.status", "effective"]},
+                            ]
+                        },
                     }
                 },
                 "awards": True,
@@ -174,7 +179,12 @@ async def calculate_normal_activities(
                     "$filter": {
                         "input": "$members",
                         "as": "member",
-                        "cond": {"$eq": ["$$member._id", user]},
+                        "cond": {
+                            "$and": [
+                                {"$eq": ["$$member._id", user]},
+                                {"$eq": ["$$member.status", "effective"]},
+                            ]
+                        },
                     }
                 }
             }
