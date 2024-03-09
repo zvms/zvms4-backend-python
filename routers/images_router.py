@@ -40,9 +40,7 @@ async def upload_image(file: UploadFile, user=Depends(get_current_user)):
 
 
 @router.get("/{image_id}/data")
-async def get_image(image_id: str, user=Depends(get_current_user)):
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+async def get_image(image_id: str):
     data = await db.zvms.images.find_one({"_id": validate_object_id(image_id)})
     image = image_storage.getBBImage(data['id'])
     if image.status_code != 200:
