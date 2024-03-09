@@ -80,21 +80,37 @@ async def change_password(
 @router.get("")
 async def read_users(query: str):
     """
-    返回用户列表
+    Query users
     """
-    # 读取用户列表
-    result = await db.zvms["users"].find().to_list(3000)
-
-    query_result = []
+    logined = False
+    try:
+        user = await Depends(get_current_user)
+        logined = True
+    except:
+        print("No user")
+    result = (
+        await db.zvms["users"]
+        .find(
+            {
+                "$or": [
+                    {"name": {"$regex": query, "$options": "i"}},
+                    {"id": {"$regex": query, "$options": "i"}},
+                ]
+            },
+            {
+                "name": True,
+                "id": True,
+                "group": True,
+            },
+        )
+        .sort({"id": 1})
+        .to_list(10 if logined else 1)
+    )
 
     for user in result:
-        if query in user["name"] or query in str(user["id"]):
-            user["_id"] = str(user["_id"])
-            user["password"] = ""
-            query_result.append(user)
+        user["_id"] = str(user["_id"])
 
-    # 返回用户列表, 排除密码
-    return {"status": "ok", "code": 200, "data": query_result}
+    return {"status": "ok", "code": 200, "data": result}
 
 
 @router.get("/{user_oid}")
