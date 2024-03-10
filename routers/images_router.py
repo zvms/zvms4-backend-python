@@ -32,7 +32,7 @@ async def upload_image(file: UploadFile, user=Depends(get_current_user)):
     )
     if os.path.exists(path):
         os.remove(path)
-    id = result.inserted_id
+    id = result.inserted_id
     return {
         "status": "ok",
         "code": 200,
