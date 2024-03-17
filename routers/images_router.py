@@ -27,7 +27,7 @@ async def upload_image(file: UploadFile, user=Depends(get_current_user)):
     if not file_id:
         raise HTTPException(status_code=500, detail="Image storage failed")
     timestamp = int(time.time())
-    result = db.zvms.images.insert_one(
+    result = await db.zvms.images.insert_one(
         {"id": file_id, "timestamp": timestamp, "uploader": user["id"]}
     )
     if os.path.exists(path):
