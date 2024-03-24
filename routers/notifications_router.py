@@ -56,7 +56,7 @@ async def get_notifications(
         "data": result,
         "metadata": {
             "size": count,
-        }
+        },
     }
 
 
@@ -85,8 +85,12 @@ class PutContent(BaseModel):
     content: str
 
 
+class PutTitle(BaseModel):
+    title: str
+
+
 @router.put("/{notification_oid}/content")
-async def update_notification(
+async def update_notification_content(
     notification_oid: str, request: PutContent, user=Depends(get_current_user)
 ):
     """
@@ -101,6 +105,25 @@ async def update_notification(
     await db.zvms.notifications.update_one(
         {"_id": validate_object_id(notification_oid)},
         {"$set": {"content": request.content}},
+    )
+
+
+@router.put("/{notification_oid}/title")
+async def update_notification_title(
+    notification_oid: str, request: PutTitle, user=Depends(get_current_user)
+):
+    """
+    Update Notification Title
+    """
+    item = await db.zvms.notifications.find_one(
+        {"_id": validate_object_id(notification_oid)}
+    )
+    if user["id"] != item["publisher"] and "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    # Update notification title
+    await db.zvms.notifications.update_one(
+        {"_id": validate_object_id(notification_oid)},
+        {"$set": {"title": request.title}},
     )
 
 
