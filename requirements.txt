@@ -38,3 +38,6 @@ websockets==12.0
 wheel==0.42.0
 yarg==0.1.9
 b2sdk==1.19.0
+pillow==10.2.0
+pandas==2.2.1
+numpy==1.26.4

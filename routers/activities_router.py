@@ -142,7 +142,7 @@ async def change_activity_title(
     if user["id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    # 修改义工标题
+    # Edit activity title
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid)},
         {"$set": {"name": name, "updatedAt": int(datetime.now().timestamp())}},
@@ -228,34 +228,50 @@ async def read_activities(
     if mode == "campus":
         # Read activities
         result = []
-        count = await db.zvms.activities.count_documents(
-            {"name": {"$regex": query, "$options": "i"}}
-        )
-        activities = (
-            await db.zvms.activities.find(
-                {
+
+        audit = "auditor" in user["per"] or "admin" in user["per"]
+
+        pipeline = [
+            {
+                "$match": {
                     "name": {"$regex": query, "$options": "i"},
-                },
-                {
+                }
+            },
+            {
+                "$project": {
                     "name": True,
                     "status": True,
                     "date": True,
                     "type": True,
                     "special": True,
-                },
-            )
-            .sort("_id", -1)
-            .skip(0 if page == -1 else (page - 1) * perpage)
-            .limit(0 if page == -1 else perpage)
-            .to_list(None if page == -1 else perpage)
+                    "members": {
+                        "$filter": {
+                            "input": "$members",
+                            "as": "member",
+                            "cond": {
+                                "$or": [
+                                    {"$eq": ["$$member.status", "" if not audit else "pending"]},
+                                ]
+                            },
+                        }
+                    }
+                }
+            },
+            {"$sort": {"_id": -1}},
+            {"$skip": 0 if page == -1 else (page - 1) * perpage},
+            {"$limit": 0 if page == -1 else perpage},
+        ]
+
+        count = await db.zvms.activities.count_documents(
+            {"name": {"$regex": query, "$options": "i"}}
         )
+        activities = await db.zvms.activities.aggregate(pipeline).to_list(None)
         for activity in activities:
             activity["_id"] = str(activity["_id"])
-            result.append(activity)
         return {
             "status": "ok",
             "code": 200,
-            "data": result,
+            "data": activities,
             "metadata": {"size": count},
         }
     elif mode == "class":
