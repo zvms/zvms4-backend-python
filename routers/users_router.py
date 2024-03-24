@@ -262,6 +262,7 @@ async def read_notifications(
                 "$or": [
                     {"receivers": str(user_oid)},
                     {"global": True},
+                    {"publisher": str(user_oid)}
                 ],
             }
         )
