@@ -37,19 +37,36 @@ async def get_activities_related_to_user(
         }
     )
 
-    activities = (
-        await db.zvms.activities.find(
+
+    pipeline = [
             {
-                "members._id": {"$in": [str(user["_id"]) for user in users]},
-                "name": {"$regex": query, "$options": "i"},
+                "$match": {
+                    "members._id": {"$in": [str(user["_id"]) for user in users]},
+                    "name": {"$regex": query, "$options": "i"},
+                }
             },
-            {"name": True, "date": True, "status": True, "type": True, "special": True},
-        )
-        .sort("_id", -1)
-        .skip(0 if page == -1 else (page - 1) * perpage)
-        .limit(0 if page == -1 else perpage)
-        .to_list(None if page == -1 else perpage)
-    )
+            {
+                "$project": {
+                    "name": True,
+                    "members": {
+                        "$filter": {
+                            "input": "$members",
+                            "as": "member",
+                            "cond": {
+                                "$in": ["$$member._id", [str(user["_id"]) for user in users]]
+                            },
+                        }
+                    },
+                    "type": True,
+                }
+            },
+            {"$sort": {"_id": -1}},
+            {"$skip": 0 if page == -1 else (page - 1) * perpage},
+            {"$limit": 0 if page == -1 else perpage},
+        ]
+
+
+    activities = await db.zvms.activities.aggregate(pipeline).to_list(None)
 
     for activity in activities:
         activity["_id"] = str(activity["_id"])
