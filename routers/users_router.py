@@ -253,7 +253,6 @@ async def read_notifications(
                 {"receivers": str(user_oid)},
                 {"global": True},
             ],
-            "expire": {"$gt": int(time.time())},
         }
     )
     notifications = (
