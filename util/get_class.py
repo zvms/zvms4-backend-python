@@ -28,9 +28,6 @@ async def get_activities_related_to_user(
     if not class_id:
         raise HTTPException(status_code=404, detail="User not in any class")
 
-    if class_id != target and target != '':
-        raise HTTPException(status_code=403, detail="Permission denied")
-
     users = await db.zvms.users.find({"group": str(class_id)}).to_list(None)
 
     count = await db.zvms.activities.count_documents(
