@@ -29,7 +29,6 @@ def bbUpload(filePath):
     uploaded_file = bucket.upload_local_file(
         local_file=local_file,
         file_name=getRealname(filePath),
-        file_info=metadata,
     )
     assert isinstance(uploaded_file, b2.FileVersion)
     return uploaded_file.id_
