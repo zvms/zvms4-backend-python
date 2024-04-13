@@ -4,7 +4,7 @@ from utils import validate_object_id
 
 
 async def get_activities_related_to_user(
-    user_oid: str, page: int = -1, perpage: int = 10, query: str = ""
+    user_oid: str, page: int = -1, perpage: int = 10, query: str = "", target: str = ''
 ):
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
     if not user:
@@ -27,6 +27,9 @@ async def get_activities_related_to_user(
 
     if not class_id:
         raise HTTPException(status_code=404, detail="User not in any class")
+
+    if class_id != target and target != '':
+        raise HTTPException(status_code=403, detail="Permission denied")
 
     users = await db.zvms.users.find({"group": str(class_id)}).to_list(None)
 
@@ -57,7 +60,10 @@ async def get_activities_related_to_user(
                             },
                         }
                     },
+                    "status": True,
+                    "date": True,
                     "type": True,
+                    "special": True,
                 }
             },
             {"$sort": {"_id": -1}},
