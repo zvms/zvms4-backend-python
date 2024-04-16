@@ -1,6 +1,7 @@
 from typings.activity import (
     Activity,
     ActivityMember,
+    ActivityMemberHistory,
     ActivityStatus,
     ActivityType,
     MemberActivityStatus,
@@ -503,6 +504,22 @@ async def user_impression_edit(
         {"$set": {"members.$.impression": result}},
     )
 
+    user_activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid), "members._id": id}
+    )['members'][0]
+
+    history = ActivityMemberHistory(impression=user_activity['impression'],
+                                    duration=user_activity['duration'],
+                                    action=user_activity['status'],
+                                    # ISO-8601
+                                    time=datetime.now().isoformat(),
+                                    actioner=user['id'])
+
+    await db.zvms.activities.update_one(
+        {"_id": validate_object_id(activity_oid), "members._id": id},
+        {"$push": {"members.$.history": history.model_dump()}}
+    )
+
     return {
         "status": "ok",
         "code": 200,
@@ -576,6 +593,103 @@ async def user_status_edit(
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid), "members._id": user_oid},
         {"$set": {"members.$.status": status}},
+    )
+
+    user_activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid), "members._id": user_oid}
+    )['members'][0]
+
+    history = ActivityMemberHistory(impression=user_activity['impression'],
+                                    duration=user_activity['duration'],
+                                    action=user_activity['status'],
+                                    # ISO-8601
+                                    time=datetime.now().isoformat(),
+                                    actioner=user['id'])
+
+    await db.zvms.activities.update_one(
+        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
+        {"$push": {"members.$.history": history.model_dump()}}
+    )
+
+    return {
+        "status": "ok",
+        "code": 200,
+    }
+
+
+class PutDuration(BaseModel):
+    duration: float
+
+
+@router.put("/{activity_oid}/member/{user_oid}/duration")
+async def user_duration_edit(
+    activity_oid: str, user_oid: str, payload: PutDuration, user=Depends(get_current_user)
+):
+    """
+    User modify activity status
+    """
+
+    # Get target activity
+    duration = payload.duration
+
+    # Get activity information
+    activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid)}
+    )
+
+    # Check if user is in activity
+    _flag = False
+    for member in activity["members"]:
+        if member["_id"] == user_oid:
+            _flag = True
+            break
+    if not _flag:
+        raise HTTPException(status_code=400, detail="User not in activity")
+
+    # Check user status
+    if (
+        "auditor" not in user["per"]
+        and "admin" not in user["per"]
+    ):
+        raise HTTPException(
+            status_code=403, detail="Permission denied, not enough permission"
+        )
+
+    activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid)}
+    )
+
+    member = None
+
+    for i in activity["members"]:
+        if i["_id"] == user_oid:
+            member = i
+            break
+
+    if member is None:
+        raise HTTPException(status_code=400, detail="User not in activity")
+
+
+    # Modify user duration
+    await db.zvms.activities.update_one(
+        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
+        {"$set": {"members.$.duration": duration}},
+    )
+
+    user_activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid), "members._id": user_oid}
+    )['members'][0]
+
+    history = ActivityMemberHistory(impression=user_activity['impression'],
+                                    duration=user_activity['duration'],
+                                    action=user_activity['status'],
+                                    # ISO-8601
+                                    time=datetime.now().isoformat(),
+                                    actioner=user['id'])
+
+    await db.zvms.activities.update_one(
+        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
+        {"$push": {"members.$.history": history.model_dump()}}
     )
 
     return {
