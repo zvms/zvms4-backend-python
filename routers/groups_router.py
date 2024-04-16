@@ -124,6 +124,7 @@ async def get_class_activities(
         "metadata": {"size": count},
     }
 
+
 @router.get('/{group_id}/user')
 async def get_users_in_class(group_id: str, page: int = -1, perpage: int = 10, query: str = '', user=Depends(get_current_user)):
     '''

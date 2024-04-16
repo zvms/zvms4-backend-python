@@ -254,7 +254,18 @@ async def read_activities(
                                 ]
                             },
                         }
-                    }
+                    },
+                }
+            },
+            {
+                "$project": {
+                    "name": True,
+                    "status": True,
+                    "date": True,
+                    "type": True,
+                    "special": True,
+                    "members._id": True,
+                    "members.status": True,
                 }
             },
             {"$sort": {"_id": -1}},
@@ -387,6 +398,26 @@ async def read_activity_user(
         {"members.$": 1, "_id": 0},
     ).to_list(None)
     return {"status": "ok", "code": 200, "data": activity[0]["members"][0]}
+
+
+@router.get("/{activity_oid}/member/{uid}/history")
+async def read_user_history(
+    activity_oid: str, uid: str, user=Depends(get_current_user)
+):
+    if (
+        "department" not in user["per"]
+        and "admin" not in user["per"]
+        and "auditor" not in user["per"]
+        and "inspector" not in user["per"]
+        and ("secretary" not in user["per"])
+        and user["id"] != str(validate_object_id(uid))
+    ):
+        raise HTTPException(status_code=403, detail="Permission denined.")
+    activity = await db.zvms.activities.find(
+        {"_id": validate_object_id(activity_oid), "members._id": uid},
+        {"members.$": 1, "_id": 0},
+    )
+    return {"status": "ok", "code": 200, "data": activity["members"][0]["history"]}
 
 
 @router.delete("/{activity_oid}/member/{uid}")

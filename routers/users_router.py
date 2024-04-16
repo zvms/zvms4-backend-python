@@ -1,13 +1,14 @@
 import time
 from fastapi import UploadFile
 from fastapi import APIRouter, HTTPException, Depends, Form, Request
-from typing import List
+from typing import List, Optional
 from fastapi.responses import StreamingResponse
 
 from pydantic import BaseModel
 from util import image_process, image_storage
 from util.calculate import calculate_time
 from util.cases import kebab_case_to_camel_case
+from util.group import is_in_a_same_class
 from utils import (
     compulsory_temporary_token,
     get_current_user,
@@ -59,9 +60,10 @@ class PutPassword(BaseModel):
 async def change_password(
     user_oid: str, credential: PutPassword, user=Depends(compulsory_temporary_token)
 ):
-    print(user)
     # Validate user's permission
-    if "admin" not in user["per"] and user["id"] != user_oid:
+    secretary = "secretary" in user["per"] and (is_in_a_same_class(user["id"], user_oid))
+    modification = user['id'] == user_oid and user['scope'] == 'temporary_token'
+    if "admin" not in user["per"] and (not modification) and "department" not in user["per"] and "auditor" not in user["per"] and (not secretary):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     password = await get_hashed_password_by_cert(credential.credential)

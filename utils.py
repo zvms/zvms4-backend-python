@@ -88,6 +88,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), scope: Optional[
     user = {
         "id": oid,
         "per": payload.get("per", None),
+        "scope": payload.get("scope", None),
     }
     if user is None:
         raise credentials_exception
