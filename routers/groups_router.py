@@ -41,7 +41,7 @@ async def get_groups(page: int = -1, perpage: int = 10, user=Depends(get_current
     if len(user["per"]) == 0:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    count = await db.zvms.groups.count_documents()
+    count = await db.zvms.groups.count_documents({})
 
     pipeline = [
         {"$sort": {"name": 1}},
@@ -69,6 +69,9 @@ async def get_group(group_id: str):
     """
 
     result = await db.zvms.groups.find_one({"_id": ObjectId(group_id)})
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Group not found")
 
     result["_id"] = str(result["_id"])
 
@@ -133,9 +136,13 @@ async def get_users_in_class(group_id: str, page: int = -1, perpage: int = 10, q
     same_class = False
     if 'secretary' in user['per']:
         user = await db.zvms.users.find_one({'_id': ObjectId(user['_id'])})
+        if user is None:
+            raise HTTPException(status_code=404, detail='User not found')
         classid = user['group']
         if classid == group_id:
             same_class = True
+    if user is None:
+        raise HTTPException(status_code=404, detail='User not found')
     if not 'admin' in user['per'] and not 'auditor' in user['per'] and not 'department' in user['per'] and (not 'secretary' in user['per'] or not same_class):
         raise HTTPException(status_code=403, detail='Permission denied')
     count = await db.zvms.users.count_documents({'group': group_id})
