@@ -43,6 +43,8 @@ async def upload_image(file: UploadFile, user=Depends(get_current_user)):
 @router.get("/{image_id}/data")
 async def get_image(image_id: str):
     data = await db.zvms.images.find_one({"_id": validate_object_id(image_id)})
+    if data is None:
+        raise HTTPException(status_code=404, detail="Image not found")
     image = image_storage.getBBImage(data['id'])
     if image.status_code != 200:
         raise HTTPException(status_code=image.status_code, detail=image.text)
@@ -57,10 +59,9 @@ async def get_image(image_id: str):
 
 @router.delete("/{image_id}")
 async def delete_image(image_id: str, user=Depends(compulsory_temporary_token)):
-    image = db.zvms.images.find_one({"id": image_id})
-    if not image:
-        raise HTTPException(status_code=404, detail="Image not found")
     image = await db.zvms.images.find_one({"_id": validate_object_id(image_id)})
+    if image is None:
+        raise HTTPException(status_code=404, detail="Image not found")
     image_storage.remove(image['id'])
     await db.zvms.images.delete_one({"_id": validate_object_id(image["_id"])})
     return {"status": "ok", "code": 200}
