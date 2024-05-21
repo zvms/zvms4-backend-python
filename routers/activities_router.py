@@ -167,6 +167,10 @@ async def change_activity_status(
     target_activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
+
+    if not target_activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
     # Check user permission
     if (
         "department" not in user["per"]
@@ -239,7 +243,12 @@ async def read_activities(
                             "as": "member",
                             "cond": {
                                 "$or": [
-                                    {"$eq": ["$$member.status", "" if not audit else "pending"]},
+                                    {
+                                        "$eq": [
+                                            "$$member.status",
+                                            "" if not audit else "pending",
+                                        ]
+                                    },
                                 ]
                             },
                         }
@@ -257,7 +266,20 @@ async def read_activities(
                     "members.status": True,
                 }
             },
-            {"$sort": {"_id": -1}},
+            {
+                "$addFields": {
+                    "pendingCount": {
+                        "$size": {
+                            "$filter": {
+                                "input": "$members",
+                                "as": "member",
+                                "cond": {"$eq": ["$$member.status", "pending"]},
+                            }
+                        }
+                    }
+                }
+            },
+            {"$sort": {"pendingCount": -1, "_id": -1}},
             {"$skip": 0 if page == -1 else (page - 1) * perpage},
             {"$limit": 0 if page == -1 else perpage},
         ]
@@ -292,13 +314,117 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
     Return activity
     """
     # Read activity
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)},
+    pipeline = [
         {
-            "members.impression": False,
-            "members.history": False,
+            "$match": {
+                "_id": validate_object_id(activity_oid),
+            }
         },
-    )
+        {
+            "$addFields": {
+                "members": {
+                    "$map": {
+                        "input": "$members",
+                        "as": "member",
+                        "in": {
+                            "$mergeObjects": [
+                                "$$member",
+                                {
+                                    "sortKey": {
+                                        "$switch": {
+                                            "branches": [
+                                                {
+                                                    "case": {
+                                                        "$eq": [
+                                                            "$$member.status",
+                                                            "pending",
+                                                        ]
+                                                    },
+                                                    "then": 0,
+                                                },
+                                                {
+                                                    "case": {
+                                                        "$eq": [
+                                                            "$$member.status",
+                                                            "rejected",
+                                                        ]
+                                                    },
+                                                    "then": 1,
+                                                },
+                                                {
+                                                    "case": {
+                                                        "$eq": [
+                                                            "$$member.status",
+                                                            "refused",
+                                                        ]
+                                                    },
+                                                    "then": 2,
+                                                },
+                                                {
+                                                    "case": {
+                                                        "$eq": [
+                                                            "$$member.status",
+                                                            "effective",
+                                                        ]
+                                                    },
+                                                    "then": 3,
+                                                },
+                                                {
+                                                    "case": {
+                                                        "$eq": [
+                                                            "$$member.status",
+                                                            "draft",
+                                                        ]
+                                                    },
+                                                    "then": 4,
+                                                },
+                                            ],
+                                            "default": 5,  # handle unexpected statuses
+                                        }
+                                    }
+                                },
+                            ]
+                        },
+                    }
+                }
+            }
+        },
+        {
+            "$set": {
+                "members": {
+                    "$sortArray": {"input": "$members", "sortBy": {"sortKey": 1}}
+                }
+            }
+        },
+        {
+            "$project": {
+                "members": {
+                    "$map": {
+                        "input": "$members",
+                        "as": "member",
+                        "in": {
+                            "_id": "$$member._id",
+                            "status": "$$member.status",
+                            "duration": "$$member.duration",
+                            "mode": "$$member.mode",
+                        },
+                    }
+                },
+                "name": True,
+                "description": True,
+                "status": True,
+                "date": True,
+                "type": True,
+                "special": True,
+                "creator": True,
+                "updatedAt": True,
+                "registration": True,
+            }
+        },
+    ]
+    activity = await db.zvms.activities.aggregate(pipeline).to_list(None)
+    activity = activity[0]
+
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
@@ -323,6 +449,9 @@ async def user_activity_signup(
         {"_id": validate_object_id(activity_oid)}
     )
 
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
     # Check available if user doesn't have any other permission
     _flag = False
     if (
@@ -343,7 +472,6 @@ async def user_activity_signup(
                 detail="Permission denied, cannot be appended to this activity.",
             )
     elif "department" in user["per"] or "admin" in user["per"]:
-        print("this one")
         status = (
             MemberActivityStatus.effective
             if activity["type"] == ActivityType.special
@@ -402,10 +530,12 @@ async def read_user_history(
         and user["id"] != str(validate_object_id(uid))
     ):
         raise HTTPException(status_code=403, detail="Permission denined.")
-    activity = await db.zvms.activities.find(
+    activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid), "members._id": uid},
         {"members.$": 1, "_id": 0},
     )
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
     return {"status": "ok", "code": 200, "data": activity["members"][0]["history"]}
 
 
@@ -421,6 +551,9 @@ async def user_activity_signoff(
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
+
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
 
     _flag = False
     for member in activity["members"]:
@@ -471,6 +604,9 @@ async def user_impression_edit(
         {"_id": validate_object_id(activity_oid)}
     )
 
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
     # Check if user is in activity
     _flag = False
     for member in activity["members"]:
@@ -494,18 +630,25 @@ async def user_impression_edit(
 
     user_activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid), "members._id": id}
-    )['members'][0]
+    )
 
-    history = ActivityMemberHistory(impression=user_activity['impression'],
-                                    duration=user_activity['duration'],
-                                    action=user_activity['status'],
-                                    # ISO-8601
-                                    time=datetime.now().isoformat(),
-                                    actioner=user['id'])
+    if user_activity is None:
+        raise HTTPException(status_code=404, detail="User not found in activity")
+
+    user_activity = user_activity["members"][0]
+
+    history = ActivityMemberHistory(
+        impression=user_activity["impression"],
+        duration=user_activity["duration"],
+        action=user_activity["status"],
+        # ISO-8601
+        time=datetime.now().isoformat(),
+        actioner=user["id"],
+    )
 
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid), "members._id": id},
-        {"$push": {"members.$.history": history.model_dump()}}
+        {"$push": {"members.$.history": history.model_dump()}},
     )
 
     return {
@@ -534,6 +677,9 @@ async def user_status_edit(
         {"_id": validate_object_id(activity_oid)}
     )
 
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
     # Check if user is in activity
     _flag = False
     for member in activity["members"]:
@@ -557,6 +703,9 @@ async def user_status_edit(
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
+
+    if activity is None:
+        raise HTTPException(status_code=404, detail="Activity not found")
 
     member = None
 
@@ -585,18 +734,25 @@ async def user_status_edit(
 
     user_activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid), "members._id": user_oid}
-    )['members'][0]
+    )
 
-    history = ActivityMemberHistory(impression=user_activity['impression'],
-                                    duration=user_activity['duration'],
-                                    action=user_activity['status'],
-                                    # ISO-8601
-                                    time=datetime.now().isoformat(),
-                                    actioner=user['id'])
+    if user_activity is None:
+        raise HTTPException(status_code=404, detail="User not found in activity")
+
+    user_activity = user_activity["members"][0]
+
+    history = ActivityMemberHistory(
+        impression=user_activity["impression"],
+        duration=user_activity["duration"],
+        action=user_activity["status"],
+        # ISO-8601
+        time=datetime.now().isoformat(),
+        actioner=user["id"],
+    )
 
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid), "members._id": user_oid},
-        {"$push": {"members.$.history": history.model_dump()}}
+        {"$push": {"members.$.history": history.model_dump()}},
     )
 
     return {
@@ -611,7 +767,10 @@ class PutDuration(BaseModel):
 
 @router.put("/{activity_oid}/member/{user_oid}/duration")
 async def user_duration_edit(
-    activity_oid: str, user_oid: str, payload: PutDuration, user=Depends(get_current_user)
+    activity_oid: str,
+    user_oid: str,
+    payload: PutDuration,
+    user=Depends(get_current_user),
 ):
     """
     User modify activity status
@@ -625,6 +784,9 @@ async def user_duration_edit(
         {"_id": validate_object_id(activity_oid)}
     )
 
+    if activity is None:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
     # Check if user is in activity
     _flag = False
     for member in activity["members"]:
@@ -635,10 +797,7 @@ async def user_duration_edit(
         raise HTTPException(status_code=400, detail="User not in activity")
 
     # Check user status
-    if (
-        "auditor" not in user["per"]
-        and "admin" not in user["per"]
-    ):
+    if "auditor" not in user["per"] and "admin" not in user["per"]:
         raise HTTPException(
             status_code=403, detail="Permission denied, not enough permission"
         )
@@ -649,6 +808,9 @@ async def user_duration_edit(
 
     member = None
 
+    if activity is None:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
     for i in activity["members"]:
         if i["_id"] == user_oid:
             member = i
@@ -656,7 +818,6 @@ async def user_duration_edit(
 
     if member is None:
         raise HTTPException(status_code=400, detail="User not in activity")
-
 
     # Modify user duration
     await db.zvms.activities.update_one(
@@ -666,18 +827,25 @@ async def user_duration_edit(
 
     user_activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid), "members._id": user_oid}
-    )['members'][0]
+    )
 
-    history = ActivityMemberHistory(impression=user_activity['impression'],
-                                    duration=user_activity['duration'],
-                                    action=user_activity['status'],
-                                    # ISO-8601
-                                    time=datetime.now().isoformat(),
-                                    actioner=user['id'])
+    if user_activity is None:
+        raise HTTPException(status_code=404, detail="User not found in activity")
+
+    user_activity = user_activity["members"][0]
+
+    history = ActivityMemberHistory(
+        impression=user_activity["impression"],
+        duration=user_activity["duration"],
+        action=user_activity["status"],
+        # ISO-8601
+        time=datetime.now().isoformat(),
+        actioner=user["id"],
+    )
 
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid), "members._id": user_oid},
-        {"$push": {"members.$.history": history.model_dump()}}
+        {"$push": {"members.$.history": history.model_dump()}},
     )
 
     return {

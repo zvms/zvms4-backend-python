@@ -1,30 +1,15 @@
-import time
-from fastapi import UploadFile
-from fastapi import APIRouter, HTTPException, Depends, Form, Request
-from typing import List, Optional
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Depends
 
 from pydantic import BaseModel
-from util import image_process, image_storage
 from util.calculate import calculate_time
-from util.cases import kebab_case_to_camel_case
 from util.group import is_in_a_same_class
 from utils import (
     compulsory_temporary_token,
     get_current_user,
-    timestamp_change,
     validate_object_id,
-    get_img_token,
-    randomString,
 )
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
 from database import db
-from bson import ObjectId
-import settings
 from util.cert import get_hashed_password_by_cert, validate_by_cert
-import os
-import config
 
 router = APIRouter()
 
@@ -61,9 +46,17 @@ async def change_password(
     user_oid: str, credential: PutPassword, user=Depends(compulsory_temporary_token)
 ):
     # Validate user's permission
-    secretary = "secretary" in user["per"] and (is_in_a_same_class(user["id"], user_oid))
-    modification = user['id'] == user_oid and user['scope'] == 'temporary_token'
-    if "admin" not in user["per"] and (not modification) and "department" not in user["per"] and "auditor" not in user["per"] and (not secretary):
+    secretary = "secretary" in user["per"] and (
+        is_in_a_same_class(user["id"], user_oid)
+    )
+    modification = user["id"] == user_oid and user["scope"] == "temporary_token"
+    if (
+        "admin" not in user["per"]
+        and (not modification)
+        and "department" not in user["per"]
+        and "auditor" not in user["per"]
+        and (not secretary)
+    ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     password = await get_hashed_password_by_cert(credential.credential)
@@ -121,6 +114,9 @@ async def read_user(user_oid: str):
     # Read user's information
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
 
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
     user["_id"] = str(user["_id"])
     del user["password"]
     return {
@@ -129,6 +125,36 @@ async def read_user(user_oid: str):
         "data": user,
     }
 
+class PutUser(BaseModel):
+    name: str
+    id: str
+    groups: list[str]
+
+@router.put("/{user_oid}")
+async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulsory_temporary_token)):
+    """
+    Update user's information
+    """
+    # Check user's permission
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    # Update user's information
+    await db.zvms.users.update_one(
+        {"_id": validate_object_id(user_oid)},
+        {
+            "$set": {
+                "name": user_struct.name,
+                "id": user_struct.id,
+                "group": user_struct.groups,
+            }
+        },
+    )
+
+    return {
+        "status": "ok",
+        "code": 200,
+    }
 
 @router.post("/{user_oid}/group")
 async def add_user_to_group(
@@ -161,7 +187,6 @@ async def remove_user_from_group(
 @router.get("/{user_oid}/activity")
 async def read_user_activity(
     user_oid: str,
-    registration: bool = False,  # 是否返回报名的义工, parameters
     user=Depends(get_current_user),
     page: int = -1,
     perpage: int = 10,
@@ -263,7 +288,7 @@ async def read_notifications(
                 "$or": [
                     {"receivers": str(user_oid)},
                     {"global": True},
-                    {"publisher": str(user_oid)}
+                    {"publisher": str(user_oid)},
                 ],
             }
         )
@@ -285,30 +310,4 @@ async def read_notifications(
         "metadata": {
             "size": count,
         },
-    }
-
-
-@router.get("/{user_oid}/image")
-async def read_images(
-    user_oid: str,
-    user=Depends(get_current_user),
-    page: int = 1,
-    perpage: int = 10,
-):
-    if user["id"] != user_oid and "admin" not in user["per"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
-    user = (
-        await db.zvms.images.find(
-            {
-                "uploader": user_oid,
-            }
-        )
-        .skip(0 if page == -1 else (page - 1) * perpage)
-        .limit(0 if page == -1 else perpage)
-        .to_list(None if page == -1 else perpage)
-    )
-    return {
-        "status": "ok",
-        "code": 200,
-        "data": user["images"],
     }

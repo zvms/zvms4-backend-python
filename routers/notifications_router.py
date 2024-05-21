@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typings.notification import Notification
 from utils import compulsory_temporary_token, get_current_user, validate_object_id
@@ -99,12 +100,20 @@ async def update_notification_content(
     item = await db.zvms.notifications.find_one(
         {"_id": validate_object_id(notification_oid)}
     )
-    if user["id"] != item["publisher"] and "admin" not in user["per"]:
+    if item is None:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    if user["id"] != item["publisher"] or "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    actioner = await db.zvms.users.find_one({"_id": item["publisher"]})
+    if actioner is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    msg = f"{actioner['name']} modified notification at {datetime.now()}"
+    if user["id"] != item["publisher"] or "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
     # Update notification content
     await db.zvms.notifications.update_one(
         {"_id": validate_object_id(notification_oid)},
-        {"$set": {"content": request.content}},
+        {"$set": {"content": request.content + "\n" + msg}},
     )
 
 
@@ -118,7 +127,9 @@ async def update_notification_title(
     item = await db.zvms.notifications.find_one(
         {"_id": validate_object_id(notification_oid)}
     )
-    if user["id"] != item["publisher"] and "admin" not in user["per"]:
+    if item is None:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    if user["id"] != item["publisher"] or "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
     # Update notification title
     await db.zvms.notifications.update_one(
@@ -137,6 +148,8 @@ async def delete_notification(
     item = await db.zvms.notifications.find_one(
         {"_id": validate_object_id(notification_oid)}
     )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Notification not found")
     if user["id"] != item["publisher"] and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
     # Remove notification

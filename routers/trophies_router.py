@@ -69,6 +69,8 @@ async def get_trophy(trophy_oid: str, user=Depends(get_current_user)):
     """
     # Get trophy
     result = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
+    if result is None:
+        raise HTTPException(status_code=404, detail="Not Found")
     result["_id"] = str(result["_id"])
     return {
         "status": "ok",
@@ -125,6 +127,8 @@ async def delete_trophy(trophy_oid: str, user=Depends(compulsory_temporary_token
     Delete Trophy
     """
     trophy = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
+    if trophy is None:
+        raise HTTPException(status_code=404, detail="Not Found")
     if "admin" not in user["per"] and user["id"] != trophy["creator"]:
         raise HTTPException(status_code=403, detail="Permission denied")
     # Delete trophy
@@ -177,6 +181,8 @@ async def update_trophy_member_status(
     Update Trophy Member Status
     """
     trophy = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
+    if trophy is None:
+        raise HTTPException(status_code=404, detail="Not Found")
     if "admin" in user["per"]:
         pass
     elif "department" in user["per"] and user["id"] == trophy["create"]:
@@ -223,6 +229,8 @@ async def delete_trophy_member(
     Delete Trophy Member
     """
     trophy = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
+    if trophy is None:
+        raise HTTPException(status_code=404, detail="Not Found")
     if (
         "admin" not in user["per"]
         and not ("department" in user["per"] and user["id"] == trophy["creator"])
@@ -248,6 +256,8 @@ async def add_trophy_award(
     Add Trophy Award
     """
     trophy = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
+    if trophy is None:
+        raise HTTPException(status_code=404, detail="Not Found")
     if "admin" not in user["per"] and user["id"] != trophy["creator"]:
         raise HTTPException(status_code=403, detail="Permission denied")
     # Add trophy award
@@ -266,6 +276,8 @@ async def delete_trophy_award(
     Delete Trophy Award
     """
     trophy = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
+    if trophy is None:
+        raise HTTPException(status_code=404, detail="Not Found")
     if "admin" not in user["per"] and user["id"] != trophy["creator"]:
         raise HTTPException(status_code=403, detail="Permission denied")
     # Delete trophy award
@@ -293,6 +305,8 @@ async def update_trophy_award_duration(
     Update Trophy Award Duration
     """
     trophy = await db.zvms.trophies.find_one({"_id": validate_object_id(trophy_oid)})
+    if trophy is None:
+        raise HTTPException(status_code=404, detail="Not Found")
     if "admin" not in user["per"] and user["id"] != trophy["creator"]:
         raise HTTPException(status_code=403, detail="Permission denied")
     # Update trophy award duration
