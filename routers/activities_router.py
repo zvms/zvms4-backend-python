@@ -40,20 +40,15 @@ async def create_activity(payload: Activity, user=Depends(get_current_user)):
             status_code=400, detail="Special activity must have a classify"
         )
 
-    if payload.type == ActivityType.specified and payload.registration is None:
-        raise HTTPException(
-            status_code=400, detail="Specified activity must have a registration"
-        )
-
     if (
         none_permission
         and payload.type == ActivityType.social
         or payload.type == ActivityType.scale
+        or payload.type == ActivityType.specified
     ):
         payload.status = ActivityStatus.pending
     elif (
         none_permission
-        and payload.type == ActivityType.specified
         or payload.type == ActivityType.special
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
@@ -174,16 +169,9 @@ async def change_activity_status(
     )
     # Check user permission
     if (
-        "secretary" not in user["per"]
-        and "department" not in user["per"]
-        and "admin" not in user["per"]
-        and (target_activity["type"] == "social" or target_activity["type"] == "scale")
-    ):
-        raise HTTPException(status_code=403, detail="Permission denied")
-    if (
         "department" not in user["per"]
         and "admin" not in user["per"]
-        and (target_activity["type"] == "specified")
+        and (target_activity["type"] == "social" or target_activity["type"] == "scale" or target_activity["type"] == "specified")
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
