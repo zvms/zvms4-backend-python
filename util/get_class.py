@@ -37,49 +37,47 @@ async def get_activities_related_to_user(
         }
     )
 
-
     pipeline = [
-            {
-                "$match": {
-                    "members._id": {"$in": [str(user["_id"]) for user in users]},
-                    "name": {"$regex": query, "$options": "i"},
-                }
-            },
-            {
-                "$project": {
-                    "name": True,
-                    "members": {
-                        "$filter": {
-                            "input": "$members",
-                            "as": "member",
-                            "cond": {
-                                "$in": ["$$member._id", [str(user["_id"]) for user in users]]
-                            },
-                        }
-                    },
-                    "status": True,
-                    "date": True,
-                    "type": True,
-                    "special": True,
-                }
-            },
-            {
-                "$project": {
-                    "name": True,
-                    "status": True,
-                    "date": True,
-                    "type": True,
-                    "special": True,
-                    "members._id": True,
-                    "members.status": True,
-                    "members.mode": True,
-                }
-            },
-            {"$sort": {"_id": -1}},
-            {"$skip": 0 if page == -1 else (page - 1) * perpage},
-            {"$limit": 0 if page == -1 else perpage},
-        ]
-
+        {
+            "$match": {
+                "members._id": {"$in": [str(user["_id"]) for user in users]},
+                "name": {"$regex": query, "$options": "i"},
+            }
+        },
+        {
+            "$project": {
+                "name": True,
+                "members": {
+                    "$filter": {
+                        "input": "$members",
+                        "as": "member",
+                        "cond": {
+                            "$in": ["$$member._id", [str(user["_id"]) for user in users]]
+                        },
+                    }
+                },
+                "status": True,
+                "date": True,
+                "type": True,
+                "special": True,
+            }
+        },
+        {
+            "$project": {
+                "name": True,
+                "status": True,
+                "date": True,
+                "type": True,
+                "special": True,
+                "members._id": True,
+                "members.status": True,
+                "members.mode": True,
+            }
+        },
+        {"$sort": {"_id": -1}},
+        {"$skip": 0 if page == -1 else (page - 1) * perpage},
+        {"$limit": 0 if page == -1 else perpage},
+    ]
 
     activities = await db.zvms.activities.aggregate(pipeline).to_list(None)
 

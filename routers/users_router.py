@@ -205,25 +205,41 @@ async def read_user_activity(
         # {"name": {"$regex": query, "$options": "i"}},
     )
     # Read user's activities
+    pipeline = [
+        {
+            '$match': {
+                'members._id': user_oid,
+                'name': {'$regex': query, '$options': 'i'},
+            }
+        },
+        {
+            '$project': {
+                'name': 1,
+                'date': 1,
+                '_id': 1,
+                'status': 1,
+                'type': 1,
+                'special': 1,
+                'members': {
+                    '$filter': {
+                        'input': '$members',
+                        'as': 'member',
+                        'cond': {'$eq': ['$$member._id', user_oid]}
+                    }
+                }
+            }
+        },
+        {
+            "$sort": {
+                "_id": -1
+            }
+        },
+        { '$skip': 0 if page == -1 else (page - 1) * perpage },
+        { '$limit': 0 if page == -1 else perpage }
+    ]
+
     all_activities = (
-        await db.zvms.activities.find(
-            {
-                "members._id": str(validate_object_id(user_oid)),
-                "name": {"$regex": query, "$options": "i"},
-            },
-            {
-                "name": 1,
-                "date": 1,
-                "_id": 1,
-                "status": 1,
-                "type": 1,
-                "special": 1,
-                "members.$": 1,
-            },
-        )
-        .skip(0 if page == -1 else (page - 1) * perpage)
-        .limit(0 if page == -1 else perpage)
-        .to_list(None if page == -1 else perpage)
+        await db.zvms.activities.aggregate(pipeline).to_list(None if page == -1 else perpage)
     )
 
     for activity in all_activities:
