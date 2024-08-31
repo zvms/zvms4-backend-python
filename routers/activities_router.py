@@ -49,7 +49,7 @@ async def create_activity(payload: Activity, user=Depends(get_current_user)):
         payload.status = ActivityStatus.pending
     elif (
         none_permission
-        or payload.type == ActivityType.special
+        and payload.type == ActivityType.special
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     elif (
@@ -461,7 +461,7 @@ async def user_activity_signup(
     ):
         raise HTTPException(status_code=403, detail="Permission denied.")
     elif "secretary" in user["per"] and "department" not in user["per"]:
-        member.status = MemberActivityStatus.draft
+        member.status = MemberActivityStatus.pending
         if not is_in_a_same_class(user["id"], member.id):
             raise HTTPException(
                 status_code=403, detail="Permission denied, not in class."
@@ -475,7 +475,7 @@ async def user_activity_signup(
         status = (
             MemberActivityStatus.effective
             if activity["type"] == ActivityType.special
-            else MemberActivityStatus.draft
+            else MemberActivityStatus.pending
         )
         member.status = status
     else:
@@ -581,82 +581,6 @@ async def user_activity_signoff(
         "code": 200,
     }
 
-
-class PutImpression(BaseModel):
-    impression: str
-
-
-@router.put("/{activity_oid}/member/{id}/impression")
-async def user_impression_edit(
-    activity_oid: str,
-    id: str,
-    impression: PutImpression,
-    user=Depends(get_current_user),
-):
-    """
-    User modify activity impression
-    """
-
-    result = impression.impression
-
-    # Fetch activity
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
-    )
-
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    # Check if user is in activity
-    _flag = False
-    for member in activity["members"]:
-        if member["_id"] == id:
-            _flag = True
-            break
-    if not _flag:
-        raise HTTPException(
-            status_code=403, detail="Permission denied, not in activity."
-        )
-
-    # Check user permission
-    if user["id"] != str(validate_object_id(id)) and "admin" not in user["per"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    # Modify user impression
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid), "members._id": id},
-        {"$set": {"members.$.impression": result}},
-    )
-
-    user_activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid), "members._id": id}
-    )
-
-    if user_activity is None:
-        raise HTTPException(status_code=404, detail="User not found in activity")
-
-    user_activity = user_activity["members"][0]
-
-    history = ActivityMemberHistory(
-        impression=user_activity["impression"],
-        duration=user_activity["duration"],
-        action=user_activity["status"],
-        # ISO-8601
-        time=datetime.now().isoformat(),
-        actioner=user["id"],
-    )
-
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid), "members._id": id},
-        {"$push": {"members.$.history": history.model_dump()}},
-    )
-
-    return {
-        "status": "ok",
-        "code": 200,
-    }
-
-
 class PutStatus(BaseModel):
     status: MemberActivityStatus
 
@@ -741,20 +665,6 @@ async def user_status_edit(
 
     user_activity = user_activity["members"][0]
 
-    history = ActivityMemberHistory(
-        impression=user_activity["impression"],
-        duration=user_activity["duration"],
-        action=user_activity["status"],
-        # ISO-8601
-        time=datetime.now().isoformat(),
-        actioner=user["id"],
-    )
-
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
-        {"$push": {"members.$.history": history.model_dump()}},
-    )
-
     return {
         "status": "ok",
         "code": 200,
@@ -831,17 +741,6 @@ async def user_duration_edit(
 
     if user_activity is None:
         raise HTTPException(status_code=404, detail="User not found in activity")
-
-    user_activity = user_activity["members"][0]
-
-    history = ActivityMemberHistory(
-        impression=user_activity["impression"],
-        duration=user_activity["duration"],
-        action=user_activity["status"],
-        # ISO-8601
-        time=datetime.now().isoformat(),
-        actioner=user["id"],
-    )
 
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid), "members._id": user_oid},

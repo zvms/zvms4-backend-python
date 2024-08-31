@@ -166,19 +166,19 @@ async def get_users_in_class(
     """
     same_class = False
     if "secretary" in user["per"]:
-        user = await db.zvms.users.find_one({"_id": ObjectId(user["_id"])})
-        if user is None:
+        target = await db.zvms.users.find_one({"_id": ObjectId(user["id"])})
+        if target is None:
             raise HTTPException(status_code=404, detail="User not found")
-        classid = user["group"]
+        classid = target["group"]
         if classid == group_id:
             same_class = True
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     if (
-        not "admin" in user["per"]
+        "admin" not in user["per"]
         and not "auditor" in user["per"]
         and not "department" in user["per"]
-        and (not "secretary" in user["per"] or not same_class)
+        and (not "secretary" in user["per"] and not same_class)
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     count = await db.zvms.users.count_documents(
