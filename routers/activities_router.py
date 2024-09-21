@@ -1,7 +1,6 @@
 from typings.activity import (
     Activity,
     ActivityMember,
-    ActivityMemberHistory,
     ActivityStatus,
     ActivityType,
     MemberActivityStatus,
@@ -41,8 +40,7 @@ async def create_activity(payload: Activity, user=Depends(get_current_user)):
         )
 
     if (
-        none_permission
-        and payload.type == ActivityType.social
+        payload.type == ActivityType.social
         or payload.type == ActivityType.scale
         or payload.type == ActivityType.specified
     ):
@@ -52,12 +50,6 @@ async def create_activity(payload: Activity, user=Depends(get_current_user)):
         and payload.type == ActivityType.special
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
-    elif (
-        only_secretary
-        and payload.type == ActivityType.social
-        or payload.type == ActivityType.scale
-    ):
-        payload.status = ActivityStatus.effective
     elif only_secretary and payload.type == ActivityType.specified:
         payload.status = ActivityStatus.pending
     elif only_secretary and payload.type == ActivityType.special:
@@ -461,7 +453,7 @@ async def user_activity_signup(
     ):
         raise HTTPException(status_code=403, detail="Permission denied.")
     elif "secretary" in user["per"] and "department" not in user["per"]:
-        member.status = MemberActivityStatus.pending
+        member.status = MemberActivityStatus.effective
         if not is_in_a_same_class(user["id"], member.id):
             raise HTTPException(
                 status_code=403, detail="Permission denied, not in class."
@@ -472,12 +464,7 @@ async def user_activity_signup(
                 detail="Permission denied, cannot be appended to this activity.",
             )
     elif "department" in user["per"] or "admin" in user["per"]:
-        status = (
-            MemberActivityStatus.effective
-            if activity["type"] == ActivityType.special
-            else MemberActivityStatus.pending
-        )
-        member.status = status
+        member.status = MemberActivityStatus.effective
     else:
         raise HTTPException(status_code=403, detail="Permission denied.")
 
@@ -581,177 +568,6 @@ async def user_activity_signoff(
         "code": 200,
     }
 
-class PutStatus(BaseModel):
-    status: MemberActivityStatus
-
-
-@router.put("/{activity_oid}/member/{user_oid}/status")
-async def user_status_edit(
-    activity_oid: str, user_oid: str, payload: PutStatus, user=Depends(get_current_user)
-):
-    """
-    User modify activity status
-    """
-
-    # Get target activity
-    status = payload.status
-
-    # Get activity information
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
-    )
-
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    # Check if user is in activity
-    _flag = False
-    for member in activity["members"]:
-        if member["_id"] == user_oid:
-            _flag = True
-            break
-    if not _flag:
-        raise HTTPException(status_code=400, detail="User not in activity")
-
-    # Check user status
-    if (
-        "auditor" not in user["per"]
-        and "admin" not in user["per"]
-        and status != "pending"
-        and status != "draft"
-    ):
-        raise HTTPException(
-            status_code=403, detail="Permission denied, not enough permission"
-        )
-
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
-    )
-
-    if activity is None:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    member = None
-
-    for i in activity["members"]:
-        if i["_id"] == user_oid:
-            member = i
-            break
-
-    if member is None:
-        raise HTTPException(status_code=400, detail="User not in activity")
-
-    if member["status"] == "effective" or member["status"] == "refused":
-        raise HTTPException(status_code=400, detail="User status cannot be changed")
-
-    if user["id"] != user_oid and (status == "draft" or status == "pending"):
-        raise HTTPException(
-            status_code=403,
-            detail="Permission denied. This action is only allowed to be done by the user himself / herself",
-        )
-
-    # Modify user status
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
-        {"$set": {"members.$.status": status}},
-    )
-
-    user_activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid}
-    )
-
-    if user_activity is None:
-        raise HTTPException(status_code=404, detail="User not found in activity")
-
-    user_activity = user_activity["members"][0]
-
-    return {
-        "status": "ok",
-        "code": 200,
-    }
-
-
-class PutDuration(BaseModel):
-    duration: float
-
-
-@router.put("/{activity_oid}/member/{user_oid}/duration")
-async def user_duration_edit(
-    activity_oid: str,
-    user_oid: str,
-    payload: PutDuration,
-    user=Depends(get_current_user),
-):
-    """
-    User modify activity status
-    """
-
-    # Get target activity
-    duration = payload.duration
-
-    # Get activity information
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
-    )
-
-    if activity is None:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    # Check if user is in activity
-    _flag = False
-    for member in activity["members"]:
-        if member["_id"] == user_oid:
-            _flag = True
-            break
-    if not _flag:
-        raise HTTPException(status_code=400, detail="User not in activity")
-
-    # Check user status
-    if "auditor" not in user["per"] and "admin" not in user["per"]:
-        raise HTTPException(
-            status_code=403, detail="Permission denied, not enough permission"
-        )
-
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
-    )
-
-    member = None
-
-    if activity is None:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    for i in activity["members"]:
-        if i["_id"] == user_oid:
-            member = i
-            break
-
-    if member is None:
-        raise HTTPException(status_code=400, detail="User not in activity")
-
-    # Modify user duration
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
-        {"$set": {"members.$.duration": duration}},
-    )
-
-    user_activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid}
-    )
-
-    if user_activity is None:
-        raise HTTPException(status_code=404, detail="User not found in activity")
-
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
-        {"$push": {"members.$.history": history.model_dump()}},
-    )
-
-    return {
-        "status": "ok",
-        "code": 200,
-    }
-
 
 @router.delete("/{activity_oid}")
 async def delete_activity(activity_oid: str, user=Depends(compulsory_temporary_token)):
@@ -773,110 +589,11 @@ async def delete_activity(activity_oid: str, user=Depends(compulsory_temporary_t
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    result = await db.zvms.activities.delete_one(
+    _ = await db.zvms.activities.delete_one(
         {"_id": validate_object_id(activity_oid)}
     )
 
     return {
         "status": "ok",
         "code": 200,
-    }
-
-
-class PostImage(BaseModel):
-    image: str
-
-
-@router.post("/{activity_oid}/member/{user_oid}/image")
-async def add_image_to_activity(
-    activity_oid: str, user_oid: str, payload: PostImage, user=Depends(get_current_user)
-):
-    """
-    Add image to activity
-    """
-    if user["id"] != user_oid:
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    image_id = payload.image
-
-    image = await db.zvms.images.find_one({"_id": validate_object_id(image_id)})
-
-    if not image:
-        raise HTTPException(status_code=404, detail="Image not found")
-
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid}
-    )
-
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
-        {"$addToSet": {"members.$.images": image_id}},
-    )
-
-    # Add image to activity
-    return {
-        "status": "ok",
-        "code": 201,
-    }
-
-
-@router.delete("/{activity_oid}/member/{user_oid}/image/{image_id}")
-async def remove_image_from_activity(
-    activity_oid: str, user_oid: str, image_id: str, user=Depends(get_current_user)
-):
-    """
-    Remove image from activity
-    """
-
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid}
-    )
-
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid), "members._id": user_oid},
-        {"$pull": {"members.$.images": image_id}},
-    )
-
-    # Remove image from activity
-    return {
-        "status": "ok",
-        "code": 200,
-    }
-
-
-@router.get("/{activity_oid}/member/{user_oid}/image")
-async def read_activity_images(
-    activity_oid: str, user_oid: str, user=Depends(get_current_user)
-):
-    """
-    Return activity images
-    """
-
-    script = [
-        {
-            "$match": {
-                "_id": validate_object_id(activity_oid),
-                "members._id": user_oid,
-            }
-        },
-        {"$unwind": "$members"},
-        {"$match": {"members._id": user_oid}},
-        {"$project": {"members.images": 1, "_id": 0}},
-    ]
-
-    result = await db.zvms.activities.aggregate(script).to_list(None)
-
-    if not result:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    return {
-        "status": "ok",
-        "code": 200,
-        "data": result[0]["members"]["images"],
     }
