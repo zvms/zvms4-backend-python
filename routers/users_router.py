@@ -7,6 +7,7 @@ from utils import (
     compulsory_temporary_token,
     get_current_user,
     validate_object_id,
+    string_to_option_object_id
 )
 from database import db
 from util.cert import get_hashed_password_by_cert, validate_by_cert
@@ -28,6 +29,12 @@ async def auth_user(auth: AuthUser):
 
     if mode is None:
         mode = "long"
+
+    if string_to_option_object_id(id) is None:
+        users = await db.zvms.users.find({"id": id}).to_list(None)
+        if len(users) != 1:
+            raise HTTPException(status_code=404, detail="The id of the user is not found, or there are multiple users with the same id.")
+        id = str(users[0]["_id"])
 
     result = await validate_by_cert(id, credential, mode)
 

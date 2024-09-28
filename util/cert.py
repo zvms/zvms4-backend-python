@@ -90,15 +90,16 @@ async def validate_by_cert(id: str, cert: str, type: Optional[str] = "long"):
     # in a minute
     if time < datetime.datetime.now().timestamp() - 60:
         raise HTTPException(status_code=401, detail="Token expired")
-    try:
-        user = await db.zvms.users.find_one({"_id": ObjectId(id)})
-        if checkpw(
-            bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")
-        ):
-            return jwt_encode(id, await get_user_permissions(user), type=type)
-        raise HTTPException(status_code=401, detail="Password incorrect")
-    except:
+    founded = await db.zvms.users.find({"_id": ObjectId(id)}).to_list(None)
+    if len(founded) == 0:
         raise HTTPException(status_code=404, detail="User not found")
+    user = founded[0]
+    if checkpw(
+        bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")
+    ):
+        return jwt_encode(id, await get_user_permissions(user), type=type)
+    else:
+        raise HTTPException(status_code=403, detail="Password incorrect")
 
 
 async def get_hashed_password_by_cert(cert: str):

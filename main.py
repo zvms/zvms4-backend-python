@@ -10,7 +10,6 @@ from routers import (
     activities_router,
     groups_router,
     trophies_router,
-    exports_router,
 )
 from fastapi import FastAPI
 from database import close_mongo_connection, connect_to_mongo
@@ -40,7 +39,6 @@ app.include_router(
 )
 app.include_router(groups_router.router, prefix="/api/group", tags=["groups"])
 app.include_router(trophies_router.router, prefix="/api/trophy", tags=["trophies"])
-app.include_router(exports_router.router, prefix="/api/export", tags=["exports"])
 
 
 # Custom exception handler for internal server errors

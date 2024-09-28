@@ -27,6 +27,12 @@ def validate_object_id(id: str):
         raise HTTPException(status_code=400, detail="Invalid Object ID")
     return _id
 
+def string_to_option_object_id(id: str):
+    try :
+        _id = ObjectId(id)
+    except:
+        return None
+    return _id
 
 async def get_user(oid: str):
     """
