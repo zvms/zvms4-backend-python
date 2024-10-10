@@ -1,8 +1,4 @@
-import code
-from fastapi import FastAPI, Depends, Request, Response
-from bson.objectid import ObjectId
-from typing import List
-
+from fastapi import Request, Response, FastAPI
 from fastapi.exceptions import RequestValidationError
 from routers import (
     notifications_router,
@@ -11,11 +7,25 @@ from routers import (
     groups_router,
     trophies_router,
 )
-from fastapi import FastAPI
 from database import close_mongo_connection, connect_to_mongo
+import socketio
 from fastapi.middleware.cors import CORSMiddleware
 
+sio = socketio.AsyncServer(async_mode="asgi")
+socket = socketio.ASGIApp(sio)
+
 app = FastAPI()
+
+app.mount("/socket.io", socket)
+
+@sio.event
+async def connect(sid, environ):
+    print(f"connect {sid}")
+
+
+@sio.event
+async def disconnect(sid):
+    print(f"disconnect {sid}")
 
 app.add_middleware(
     CORSMiddleware,

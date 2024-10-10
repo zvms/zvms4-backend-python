@@ -25,22 +25,11 @@ class ActivityMode(str, Enum):
     social_practice = "social-practice"
 
 
-class ActivityMemberHistory(BaseModel):
-    impression: str
-    duration: float
-    time: str  # ISO 8601
-    actioner: str
-    action: MemberActivityStatus
-
-
 class ActivityMember(BaseModel):
     id: str = Field(..., alias='_id')
     status: MemberActivityStatus
-    impression: str
     mode: ActivityMode
     duration: float
-    history: list[ActivityMemberHistory]
-    images: list[str]
 
 
 class ClassRegistration(BaseModel):
