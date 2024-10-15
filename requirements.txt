@@ -1,5 +1,5 @@
 annotated-types==0.6.0
-anyio==4.2.0
+anyio==4.6.2.post1
 bcrypt==4.1.2
 certifi==2024.2.2
 charset-normalizer==3.3.2
