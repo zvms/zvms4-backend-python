@@ -3,6 +3,8 @@ from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends
 from database import db
 from pydantic import BaseModel
+
+from util.calculate import calculate_time
 from util.get_class import get_activities_related_to_user
 
 from utils import compulsory_temporary_token, get_current_user, validate_object_id
@@ -194,6 +196,69 @@ async def get_users_in_class(
     for user in result:
         user["_id"] = str(user["_id"])
     return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
+
+
+@router.get("/{group_id}/time")
+async def get_user_times_in_class(
+    group_id: str,
+    page: int = 1,
+    perpage: int = 10,
+    exceeding: bool = True,
+    shortage: bool = False,
+    search: str = "",
+    user=Depends(get_current_user),
+):
+    """
+    Get users in a class
+    """
+    same_class = False
+    if "secretary" in user["per"]:
+        target = await db.zvms.users.find_one({"_id": ObjectId(user["id"])})
+        if target is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        classid = target["group"]
+        if classid == group_id:
+            same_class = True
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if (
+        "admin" not in user["per"]
+        and not "auditor" in user["per"]
+        and not "department" in user["per"]
+        and (not "secretary" in user["per"] and not same_class)
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    count = await db.zvms.users.count_documents(
+        {"group": group_id, "name": {"$regex": search, "$options": "i"}}
+    )
+    pipeline = [
+        {"$match": {"group": group_id, "name": {"$regex": search, "$options": "i"}}},
+        {"$sort": {"id": 1}},
+        {"$skip": (page - 1) * perpage},
+        {"$limit": perpage},
+    ]
+    result = await db.zvms.users.aggregate(pipeline).to_list(None)
+    time = []
+    for user in result:
+        user_time = await calculate_time(str(user['_id']))
+        if exceeding or shortage:
+            more_on_campus = round(max(user_time['off-campus'] - 15, 0) / 2, 1)
+            more_off_campus = round(max(user_time['on-campus'] - 30, 0) / 3, 1)
+            user_time['on-campus'] += more_on_campus
+            user_time['off-campus'] += more_off_campus
+        if shortage:
+            user_time['on-campus'] = 30 - user_time['on-campus']
+            user_time['off-campus'] = 15 - user_time['off-campus']
+            user_time['social-practice'] = 18 - user_time['social-practice']
+        time.append({
+            '_id': str(user["_id"]),
+            'name': user["name"],
+            'id': str(user["id"]),
+            'on-campus': user_time["on-campus"],
+            'off-campus': user_time["off-campus"],
+            'social-practice': user_time["social-practice"],
+        })
+    return {"status": "ok", "code": 200, "data": time, "metadata": {"size": count}}
 
 
 class PutGroupDescription(BaseModel):

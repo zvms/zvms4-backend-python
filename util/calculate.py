@@ -165,7 +165,7 @@ async def calculate_special_activities(
 
 
 async def calculate_normal_activities(
-    user: str, activities: Optional[list[dict]] = []
+    user: str
 ) -> dict[str, float]:
     # Read user's activity list
 
@@ -175,7 +175,6 @@ async def calculate_normal_activities(
                 "members._id": user,
                 "status": "effective",
                 "members.status": "effective",
-                "type": {"$ne": "special"},
             }
         },
         {
@@ -222,15 +221,6 @@ async def calculate_normal_activities(
 
 async def calculate_time(
     user: str,
-    normal_activities: list[dict] = [],
-    special_activities: list[dict] = [],
-    prize_activities: list[dict] = [],
-    trophies: list[dict] = [],
-    prize_full: float = 10.0,
-    discount: bool = False,
-    discount_rate: float = 1 / 3,
-    discount_full: float = 6.0,  # if `on-campus` is full, can be used to calculate `off-campus` time with 1/3 exceeded time (rounded to 1 decimal place)
-    discount_base: float = 30.0,  # if `on-campus` is full, can be used to calculate `off-campus` time with 1/3 exceeded time (rounded to 1 decimal place)
 ) -> dict[str, float]:
     result = {
         "on-campus": 0.0,
@@ -239,36 +229,14 @@ async def calculate_time(
         "trophy": 0.0,
         "total": 0.0,
     }
-    trophy = await calculate_awards(user)
-    result["on-campus"] = trophy["on-campus"]
-    result["off-campus"] = trophy["off-campus"]
-    result["total"] = trophy["total"]
-    result["trophy"] = trophy["total"]
     normal = await calculate_normal_activities(user)
-    result["on-campus"] += normal["on-campus"]
-    result["off-campus"] += normal["off-campus"]
-    result["social-practice"] += normal["social-practice"]
-    result["total"] += (
+    result["on-campus"] = normal["on-campus"]
+    result["off-campus"] = normal["off-campus"]
+    result["social-practice"] = normal["social-practice"]
+    result["total"] = (
         normal["on-campus"] + normal["off-campus"] + normal["social-practice"]
-    )
-    special = await calculate_special_activities(user)
-    result["on-campus"] += special["on-campus"]
-    result["off-campus"] += special["off-campus"]
-    result["social-practice"] += special["social-practice"]
-    result["total"] += (
-        special["on-campus"] + special["off-campus"] + special["social-practice"]
     )
     result["on-campus"] = round(result["on-campus"], 1)
     result["off-campus"] = round(result["off-campus"], 1)
-    if discount:
-        if result["on-campus"] > discount_base:
-            discount_duration = round(
-                (result["on-campus"] - discount_base) * discount_rate, 1
-            )
-            if discount_duration > discount_full:
-                discount_duration = discount_full
-            result["off-campus"] += discount_duration
     result["social-practice"] = round(result["social-practice"], 1)
-    result["trophy"] = round(result["trophy"], 1)
-    result["total"] = round(result["total"], 1)
     return result

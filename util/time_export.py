@@ -66,12 +66,6 @@ async def calculate(
     for user in tqdm(users):
         time = await calculate_time(
             str(user["_id"]),
-            normal_activities,
-            special_activities,
-            prize_activities,
-            trophies,
-            prize_full,
-            discount,
         )
         classname = await get_classname(user, groups)
         if classname is None:
