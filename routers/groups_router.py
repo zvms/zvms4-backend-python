@@ -242,22 +242,25 @@ async def get_user_times_in_class(
     for user in result:
         user_time = await calculate_time(str(user['_id']))
         if exceeding or shortage:
-            more_on_campus = round(max(user_time['off-campus'] - 15, 0) / 2, 1)
-            more_off_campus = round(max(user_time['on-campus'] - 30, 0) / 3, 1)
+            more_on_campus = min(round(max(user_time['off-campus'] - 15, 0) / 2, 1), 6.0)
+            more_off_campus = min(round(max(user_time['on-campus'] - 30, 0) / 3, 1), 6.0)
             user_time['on-campus'] += more_on_campus
             user_time['off-campus'] += more_off_campus
         if shortage:
-            user_time['on-campus'] = 30 - user_time['on-campus']
-            user_time['off-campus'] = 15 - user_time['off-campus']
-            user_time['social-practice'] = 18 - user_time['social-practice']
-        time.append({
+            user_time['on-campus'] = max(30 - user_time['on-campus'], 0)
+            user_time['off-campus'] = max(15 - user_time['off-campus'], 0)
+            user_time['social-practice'] = max(18 - user_time['social-practice'], 0)
+        group = await db.zvms.groups.find_one({"_id": {"$in": list(map(lambda x: ObjectId(x), user['group']))}, "type": "class"})
+        doc = {
             '_id': str(user["_id"]),
             'name': user["name"],
             'id': str(user["id"]),
             'on-campus': user_time["on-campus"],
             'off-campus': user_time["off-campus"],
             'social-practice': user_time["social-practice"],
-        })
+            'group': group['name']
+        }
+        time.append(doc)
     return {"status": "ok", "code": 200, "data": time, "metadata": {"size": count}}
 
 
