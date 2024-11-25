@@ -64,7 +64,7 @@ async def compulsory_temporary_token(token: str = Depends(oauth2_scheme)):
 
 async def get_current_user(token: str = Depends(oauth2_scheme), scope: Optional[str] = 'long'):
     """
-    用于 Depends 注入, 返回当前用户信息 User
+    Inject `Depends`, returning user info
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -95,6 +95,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), scope: Optional[
         "id": oid,
         "per": payload.get("per", None),
         "scope": payload.get("scope", None),
+        "elg": payload.get("elg", None),
     }
     if user is None:
         raise credentials_exception

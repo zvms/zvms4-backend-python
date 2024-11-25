@@ -23,8 +23,8 @@ def hash_password(password):
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
 
-def check_password(password, hashed):
-    return bcrypt.checkpw(password.encode("utf-8"), hashed)
+def check_password(password: str, hashed: str):
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
 public_key = RSA.import_key(open("rsa_public_key.pem", "rb").read())
@@ -47,6 +47,7 @@ def rsa_decrypt(ciphertext):
 def jwt_encode(
     id: str,
     permissions: list[str],
+    eligibility: list[str],
     type: Optional[str] = "long",
 ):
     duration = (
@@ -63,6 +64,7 @@ def jwt_encode(
             "access_token" if type == "long" else "temporary_token"
         ),  # Dangerous Zone Access needs temporary token, others need access token.
         "per": permissions,
+        "elg": eligibility,
         "jti": str(ObjectId()),
     }
     result = jwt.encode(payload, jwt_private_key, algorithm="HS256")
@@ -97,7 +99,11 @@ async def validate_by_cert(id: str, cert: str, type: Optional[str] = "long"):
     if checkpw(
         bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")
     ):
-        return jwt_encode(id, await get_user_permissions(user), type=type)
+        if 'eligibility' in user:
+            eligibility = user["eligibility"]
+        else:
+            eligibility = []
+        return jwt_encode(id, eligibility, await get_user_permissions(user), type=type)
     else:
         raise HTTPException(status_code=403, detail="Password incorrect")
 

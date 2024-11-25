@@ -68,6 +68,16 @@ async def change_password(
 
     password = await get_hashed_password_by_cert(credential.credential)
 
+    # Get origin user's permissions: if admin, should reject the request
+    forbid_groups = await db.zvms.groups.find({"permission": {"$in": ['admin', 'system']}}).to_list(None)
+    user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user["group"] in forbid_groups:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+
     # Change user's password
     await db.zvms.users.update_one(
         {"_id": validate_object_id(user_oid)}, {"$set": {"password": str(password)}}

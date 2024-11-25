@@ -597,3 +597,55 @@ async def delete_activity(activity_oid: str, user=Depends(compulsory_temporary_t
         "status": "ok",
         "code": 200,
     }
+
+
+@router.get("/{activity_oid}/ratings")
+async def get_activity_ratings(activity_oid: str, user=Depends(get_current_user)):
+    """
+    Get activity ratings
+    """
+
+    if "admin" not in user["per"] and "department" not in user["per"] and "rating" not in user["elg"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid)}
+    )
+
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    if (
+        user["id"] != activity["creator"]
+        and "admin" not in user["per"]
+        and "department" not in user["per"]
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    # Check the average rating for each int-typed field, and remain the original value for other fields
+
+    res = await db.zvms.ratings.find(
+        {"activity_id": activity_oid }
+    ).to_list(None)
+
+    result = {}
+    ratings = {}
+
+    for rating in res:
+        rating["_id"] = str(rating["_id"])
+        for key, value in rating.items():
+            if key in ["_id", "activity_id", "user_id"]:
+                continue
+            if isinstance(value, int):
+                if key not in result:
+                    result[key] = 0
+                result[key] += value
+
+    for key, value in result.items():
+        result[key] = value / len(ratings)
+
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": result,
+    }

@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 from bson import ObjectId
 from enum import Enum
 
+from util.logs import ZVMSLog, LogType
+
 
 class ActivityType(str, Enum):
     specified = "specified"
@@ -80,3 +82,13 @@ class Activity(BaseModel):
     status: ActivityStatus
     url: Optional[str | None] = None
     special: Optional[Special | None] = None
+
+    def log(self, actor: str, ip: str):
+        detail = f"""User {self.creator} created activity {self.name} at {self.createdAt}. (ID: {self._id})"""
+        return ZVMSLog(
+            user=actor,
+            detail=detail,
+            log_type=LogType.CreateActivity,
+            ip=ip,
+            affected=list(map(lambda x: x.id, self.members))
+        )

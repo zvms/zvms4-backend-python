@@ -5,6 +5,7 @@ from database import db
 from pydantic import BaseModel
 
 from util.calculate import calculate_time
+from util.cert import check_password
 from util.get_class import get_activities_related_to_user
 
 from utils import compulsory_temporary_token, get_current_user, validate_object_id
@@ -195,6 +196,7 @@ async def get_users_in_class(
     result = await db.zvms.users.aggregate(pipeline).to_list(None)
     for user in result:
         user["_id"] = str(user["_id"])
+        user['password'] = not check_password(user['id'], user['password'])
     return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
 
 
