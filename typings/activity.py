@@ -83,12 +83,12 @@ class Activity(BaseModel):
     url: Optional[str | None] = None
     special: Optional[Special | None] = None
 
-    def log(self, actor: str, ip: str):
-        detail = f"""User {self.creator} created activity {self.name} at {self.createdAt}. (ID: {self._id})"""
-        return ZVMSLog(
-            user=actor,
-            detail=detail,
-            log_type=LogType.CreateActivity,
-            ip=ip,
-            affected=list(map(lambda x: x.id, self.members))
-        )
+    # def log(self, actor: str, ip: str):
+    #     detail = f"""User {self.creator} created activity {self.name} at {self.createdAt}. (ID: {self._id})"""
+    #     return ZVMSLog(
+    #         user=actor,
+    #         detail=detail,
+    #         log_type=LogType.CreateActivity,
+    #         ip=ip,
+    #         affected=list(map(lambda x: x.id, self.members))
+    #     )

@@ -46,8 +46,8 @@ def rsa_decrypt(ciphertext):
 
 def jwt_encode(
     id: str,
-    permissions: list[str],
     eligibility: list[str],
+    permissions: list[str],
     type: Optional[str] = "long",
 ):
     duration = (
