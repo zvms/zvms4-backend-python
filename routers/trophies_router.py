@@ -10,7 +10,7 @@ from bson import ObjectId
 from database import db
 from fastapi import HTTPException, APIRouter, Depends
 from util.group import is_in_a_same_class
-from utils import compulsory_temporary_token, get_current_user, validate_object_id
+from util.object_id import compulsory_temporary_token, get_current_user, validate_object_id
 from datetime import datetime
 from pydantic import BaseModel
 

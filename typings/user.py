@@ -2,6 +2,8 @@ from dataclasses import field
 from enum import Enum
 from pydantic import BaseModel
 
+from util.user import get_user_name
+
 
 class UserSex(str, Enum):
     male = "male"

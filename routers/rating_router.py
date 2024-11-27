@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typings.notification import Notification
 from typings.rating import ActivityRating
-from utils import compulsory_temporary_token, get_current_user, validate_object_id
+from util.object_id import compulsory_temporary_token, get_current_user, validate_object_id
 from database import db
 from pydantic import BaseModel
 

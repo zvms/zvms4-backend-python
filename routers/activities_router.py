@@ -7,9 +7,12 @@ from typings.activity import (
     SpecialActivityClassify,
 )
 from fastapi import APIRouter, HTTPException, Depends
+
+from typings.log import inject_log
 from util.get_class import get_activities_related_to_user
 from util.group import is_in_a_same_class
-from utils import compulsory_temporary_token, get_current_user, validate_object_id
+from util.user import get_user_name
+from util.object_id import compulsory_temporary_token, get_current_user, validate_object_id
 from datetime import datetime
 from database import db
 from pydantic import BaseModel
@@ -18,7 +21,7 @@ router = APIRouter()
 
 
 @router.post("")
-async def create_activity(payload: Activity, user=Depends(get_current_user)):
+async def create_activity(payload: Activity, user=Depends(get_current_user), log=Depends(inject_log)):
     """
     Create activity
     """
@@ -73,10 +76,13 @@ async def create_activity(payload: Activity, user=Depends(get_current_user)):
 
     diction["members"] = members
 
-    # Crezate activity
+    # Create activity
     result = await db.zvms.activities.insert_one(diction)
 
     id = result.inserted_id
+
+    log.with_text((await payload.log(user['id'])).replace("$PLACEHOLDER", id))
+    await log.insert_log()
 
     return {"status": "ok", "code": 201, "data": str(id)}
 
@@ -87,11 +93,14 @@ class PutDescription(BaseModel):
 
 @router.put("/{activity_oid}/description")
 async def change_activity_description(
-    activity_oid: str, payload: PutDescription, user=Depends(get_current_user)
+    activity_oid: str, payload: PutDescription, user=Depends(get_current_user), log=Depends(inject_log)
 ):
     """
     Edit activity description
     """
+    log = log.with_text(f"User {await get_user_name(user['id'])} changed activity description to {payload.description}")
+    await log.insert_log()
+
     description = payload.description
     # Check permission
     if user["id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
@@ -120,7 +129,7 @@ class PutActivityName(BaseModel):
 
 @router.put("/{activity_oid}/name")
 async def change_activity_title(
-    activity_oid: str, payload: PutActivityName, user=Depends(get_current_user)
+    activity_oid: str, payload: PutActivityName, user=Depends(get_current_user), log=Depends(inject_log)
 ):
     """
     Modify Activity Title
@@ -148,11 +157,14 @@ class PutActivityStatus(BaseModel):
 
 @router.put("/{activity_oid}/status")
 async def change_activity_status(
-    activity_oid: str, payload: PutActivityStatus, user=Depends(get_current_user)
+    activity_oid: str, payload: PutActivityStatus, user=Depends(get_current_user), log=Depends(inject_log)
 ):
     """
     Modify activity status
     """
+
+    log.with_text(f"User {await get_user_name(user['id'])} changed activity status to {payload.status}")
+    await log.insert_log()
 
     status = payload.status
 
@@ -426,7 +438,7 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
 
 @router.post("/{activity_oid}/member")
 async def user_activity_signup(
-    activity_oid: str, member: ActivityMember, user=Depends(get_current_user)
+    activity_oid: str, member: ActivityMember, user=Depends(get_current_user), log=Depends(inject_log)
 ):
     """
     Append user to activity
@@ -435,6 +447,9 @@ async def user_activity_signup(
     If user is secretary, user is allowed to append user who is in the same class.
     Admin is allowed to append user to any activity.
     """
+
+    log.with_text(await member.log())
+    await log.insert_log()
 
     # Read activity
     activity = await db.zvms.activities.find_one(
@@ -528,7 +543,7 @@ async def read_user_history(
 
 @router.delete("/{activity_oid}/member/{uid}")
 async def user_activity_signoff(
-    activity_oid: str, uid: str, user=Depends(compulsory_temporary_token)
+    activity_oid: str, uid: str, user=Depends(compulsory_temporary_token), log=Depends(inject_log)
 ):
     """
     User exit activity or admin remove user from activity
@@ -538,6 +553,9 @@ async def user_activity_signoff(
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
+
+    log.with_text(f"User {await get_user_name(user['id'])} removed user {await get_user_name(uid)} from activity {activity_oid} ({activity['name']})")
+    await log.insert_log()
 
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -553,7 +571,6 @@ async def user_activity_signoff(
     if (
         user["id"] != str(validate_object_id(uid))
         and ("admin" not in user["per"] and "department" not in user["per"])
-        and ("secretary" not in user["per"] or not is_in_a_same_class(user["id"], uid))
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
@@ -570,7 +587,7 @@ async def user_activity_signoff(
 
 
 @router.delete("/{activity_oid}")
-async def delete_activity(activity_oid: str, user=Depends(compulsory_temporary_token)):
+async def delete_activity(activity_oid: str, user=Depends(compulsory_temporary_token), log=Depends(inject_log)):
     """
     Remove activity
     """
@@ -578,6 +595,9 @@ async def delete_activity(activity_oid: str, user=Depends(compulsory_temporary_t
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
     )
+
+    log.with_text(f"User {await get_user_name(user['id'])} deleted activity {activity['name']} with id {activity_oid}")
+    await log.insert_log()
 
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")

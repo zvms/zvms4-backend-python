@@ -1,16 +1,21 @@
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Depends
 
 from pydantic import BaseModel
+
+from typings.log import inject_log
 from util.calculate import calculate_time
 from util.group import is_in_a_same_class
-from utils import (
+from util.object_id import (
     compulsory_temporary_token,
     get_current_user,
     validate_object_id,
-    string_to_option_object_id
+    string_to_option_object_id, optional_current_user
 )
 from database import db
 from util.cert import get_hashed_password_by_cert, validate_by_cert
+from util.user import get_user_name
 
 router = APIRouter()
 
@@ -50,8 +55,10 @@ class PutPassword(BaseModel):
 
 @router.put("/{user_oid}/password")
 async def change_password(
-    user_oid: str, credential: PutPassword, user=Depends(compulsory_temporary_token)
+    user_oid: str, credential: PutPassword, user=Depends(compulsory_temporary_token), log=Depends(inject_log)
 ):
+    log.with_text(f'''User {await get_user_name(user_oid)}'s password is changed''')
+    await log.insert_log()
     # Validate user's permission
     secretary = "secretary" in user["per"] and (
         is_in_a_same_class(user["id"], user_oid)
@@ -70,11 +77,11 @@ async def change_password(
 
     # Get origin user's permissions: if admin, should reject the request
     forbid_groups = await db.zvms.groups.find({"permission": {"$in": ['admin', 'system']}}).to_list(None)
-    user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
-    if user is None:
+    target = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
+    if target is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if user["group"] in forbid_groups:
+    if target["group"] in forbid_groups and user["id"] != str(target['_id']):
         raise HTTPException(status_code=403, detail="Permission denied")
 
 
@@ -90,10 +97,11 @@ async def change_password(
 
 
 @router.get("")
-async def read_users(query: str):
+async def read_users(query: str, user: Optional[str]=Depends(optional_current_user)):
     """
     Query users
     """
+    print(user)
     result = (
         await db.zvms["users"]
         .find(
@@ -101,6 +109,9 @@ async def read_users(query: str):
                 "$or": [
                     {"name": {"$regex": query, "$options": "i"}},
                     {"id": {"$regex": query, "$options": "i"}},
+                ] if user is not None else [
+                    # should not search if not login.
+                    {"id": query}
                 ]
             },
             {
@@ -124,10 +135,6 @@ async def read_user(user_oid: str):
     """
     Return user's information
     """
-    # # 验证用户权限, 仅管理员可查看他人信息
-    # if user["permission"] < 16 and user["_id"] != validate_object_id(user_oid):
-    #     raise HTTPException(status_code=403, detail="Permission denied")
-
     # Read user's information
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
 
@@ -148,10 +155,12 @@ class PutUser(BaseModel):
     groups: list[str]
 
 @router.put("/{user_oid}")
-async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulsory_temporary_token)):
+async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulsory_temporary_token), log=Depends(inject_log)):
     """
     Update user's information
     """
+    log.with_text(f'''User {await get_user_name(user_oid)}'s data is updated to {user_struct.model_dump()}''')
+
     # Check user's permission
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")

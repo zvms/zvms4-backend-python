@@ -8,7 +8,7 @@ from util.calculate import calculate_time
 from util.cert import check_password
 from util.get_class import get_activities_related_to_user
 
-from utils import compulsory_temporary_token, get_current_user, validate_object_id
+from util.object_id import compulsory_temporary_token, get_current_user, validate_object_id
 
 router = APIRouter()
 
@@ -145,6 +145,23 @@ async def get_class_activities(
     """
     Get activities related to a group
     """
+    same_class = False
+    if "secretary" in user["per"]:
+        target = await db.zvms.users.find_one({"_id": ObjectId(user["id"])})
+        if target is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        classid = target["group"]
+        if classid == group_id:
+            same_class = True
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if (
+        "admin" not in user["per"]
+        and not "auditor" in user["per"]
+        and not "department" in user["per"]
+        and (not "secretary" in user["per"] and not same_class)
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
     result, count = await get_activities_related_to_user(
         user["id"], page, perpage, query, group_id
     )

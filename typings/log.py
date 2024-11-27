@@ -1,0 +1,50 @@
+from fastapi import Request, Depends
+from datetime import datetime
+
+from database import db
+from util.logify import binding_user_credentials
+from util.object_id import get_current_user
+
+
+class ZVMSLog:
+    url: str
+    user: str
+    # Clarity ID, which is also Device ID
+    clarity: str
+    data: str
+    timestamp: float
+    ip: str
+
+    def __init__(self, url: str, user: str, clarity: str, data: str, ip: str, timestamp: float):
+        self.url = url
+        self.user = user
+        self.clarity = clarity
+        self.data = data
+        self.timestamp = timestamp
+        self.ip = ip
+
+    def model_dump(self) -> dict:
+        return {
+            "url": self.url,
+            "user": self.user,
+            "clarity": self.clarity,
+            "data": self.data,
+            "ip": self.ip,
+            "timestamp": self.timestamp
+        }
+
+    def with_text(self, text: str) -> 'ZVMSLog':
+        self.data = text
+        return self
+
+    async def insert_log(self):
+        return await db.zvms.logs.insert_one(self.model_dump())
+
+def inject_log(request: Request, user=Depends(get_current_user), meta=Depends(binding_user_credentials)):
+    url = str(request.url)
+    user = user['id']
+    clarity = meta['clarity_id']
+    ip = meta['ip']
+    data = ''
+    timestamp = datetime.timestamp(datetime.now())
+    return ZVMSLog(url, user, clarity, data, ip, timestamp)
