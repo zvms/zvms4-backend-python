@@ -1,12 +1,11 @@
+from datetime import datetime
 from typing import Optional
-
-from fastapi import APIRouter, HTTPException, Depends
-
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
-
-from typings.log import inject_log
+from typings.log import inject_log, ZVMSLog
 from util.calculate import calculate_time
 from util.group import is_in_a_same_class
+from util.logify import binding_user_credentials
 from util.object_id import (
     compulsory_temporary_token,
     get_current_user,
@@ -27,15 +26,17 @@ class AuthUser(BaseModel):
 
 
 @router.post("/auth")
-async def auth_user(auth: AuthUser, log=Depends(inject_log)):
+async def auth_user(auth: AuthUser, request: Request, meta=Depends(binding_user_credentials)):
     id = auth.id
     mode = auth.mode
     credential = auth.credential
 
-    if not log.includes_clarity:
-        raise HTTPException(status_code=400, detail='Outdated frontend, please refresh the page. If you are using Xuehai Pad, you can reinstall it.')
+    log = ZVMSLog(str(request.url), auth.id, meta['clarity_id'], f'''User {await get_user_name(id)} is logging in''',
+                  meta['ip'], datetime.timestamp(datetime.now()))
 
-    log.with_text(f'''User {await get_user_name(id)} is logging in''')
+    if not log.includes_clarity:
+        log.with_text(f'''Outdated frontend version. You should refresh pages until a prompt appears, or reinstall the browser.''')
+
     await log.insert_log()
 
     if mode is None:
@@ -44,7 +45,8 @@ async def auth_user(auth: AuthUser, log=Depends(inject_log)):
     if string_to_option_object_id(id) is None:
         users = await db.zvms.users.find({"id": id}).to_list(None)
         if len(users) != 1:
-            raise HTTPException(status_code=404, detail="The id of the user is not found, or there are multiple users with the same id.")
+            raise HTTPException(status_code=404,
+                                detail="The id of the user is not found, or there are multiple users with the same id.")
         id = str(users[0]["_id"])
 
     result = await validate_by_cert(id, credential, mode)
@@ -90,7 +92,6 @@ async def change_password(
     if target["group"] in forbid_groups and user["id"] != str(target['_id']):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-
     # Change user's password
     await db.zvms.users.update_one(
         {"_id": validate_object_id(user_oid)}, {"$set": {"password": str(password)}}
@@ -103,7 +104,7 @@ async def change_password(
 
 
 @router.get("")
-async def read_users(query: str, user: Optional[str]=Depends(optional_current_user)):
+async def read_users(query: str, user: Optional[str] = Depends(optional_current_user)):
     """
     Query users
     """
@@ -155,13 +156,16 @@ async def read_user(user_oid: str):
         "data": user,
     }
 
+
 class PutUser(BaseModel):
     name: str
     id: str
     groups: list[str]
 
+
 @router.put("/{user_oid}")
-async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulsory_temporary_token), log=Depends(inject_log)):
+async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulsory_temporary_token),
+                      log=Depends(inject_log)):
     """
     Update user's information
     """
@@ -187,6 +191,7 @@ async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulso
         "status": "ok",
         "code": 200,
     }
+
 
 @router.post("/{user_oid}/group")
 async def add_user_to_group(
@@ -266,8 +271,8 @@ async def read_user_activity(
                 "_id": -1
             }
         },
-        { '$skip': 0 if page == -1 else (page - 1) * perpage },
-        { '$limit': 0 if page == -1 else perpage }
+        {'$skip': 0 if page == -1 else (page - 1) * perpage},
+        {'$limit': 0 if page == -1 else perpage}
     ]
 
     all_activities = (
