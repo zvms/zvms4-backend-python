@@ -35,7 +35,7 @@ async def auth_user(auth: AuthUser, request: Request, meta=Depends(binding_user_
                   meta['ip'], datetime.timestamp(datetime.now()))
 
     if not log.includes_clarity:
-        log.with_text(f'''Outdated frontend version. You should refresh pages until a prompt appears, or reinstall the browser.''')
+        raise HTTPException(status_code=400, detail=f'''Outdated frontend version. You should refresh pages until a prompt appears, or reinstall the browser.''')
 
     await log.insert_log()
 
