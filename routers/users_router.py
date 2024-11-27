@@ -27,10 +27,16 @@ class AuthUser(BaseModel):
 
 
 @router.post("/auth")
-async def auth_user(auth: AuthUser):
+async def auth_user(auth: AuthUser, log=Depends(inject_log)):
     id = auth.id
     mode = auth.mode
     credential = auth.credential
+
+    if not log.includes_clarity:
+        raise HTTPException(status_code=400, detail='Outdated frontend, please refresh the page. If you are using Xuehai Pad, you can reinstall it.')
+
+    log.with_text(f'''User {await get_user_name(id)} is logging in''')
+    await log.insert_log()
 
     if mode is None:
         mode = "long"

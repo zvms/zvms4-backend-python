@@ -40,6 +40,10 @@ class ZVMSLog:
     async def insert_log(self):
         return await db.zvms.logs.insert_one(self.model_dump())
 
+    @property
+    def includes_clarity(self) -> bool:
+        return self.clarity != '' and self.clarity is not None
+
 def inject_log(request: Request, user=Depends(get_current_user), meta=Depends(binding_user_credentials)):
     url = str(request.url)
     user = user['id']
