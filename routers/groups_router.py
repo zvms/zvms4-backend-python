@@ -179,6 +179,7 @@ async def get_users_in_class(
     page: int = 1,
     perpage: int = 10,
     search: str = "",
+    pwdm: bool = False,
     user=Depends(get_current_user),
 ):
     """
@@ -213,7 +214,10 @@ async def get_users_in_class(
     result = await db.zvms.users.aggregate(pipeline).to_list(None)
     for user in result:
         user["_id"] = str(user["_id"])
-        user['password'] = not check_password(user['id'], user['password'])
+        if pwdm:
+            user['password'] = not check_password(user['id'], user['password'])
+        else:
+            user['password'] = None
     return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
 
 

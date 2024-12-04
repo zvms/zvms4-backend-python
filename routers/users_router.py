@@ -234,7 +234,7 @@ async def read_user_activity(
     """
     # Check user's permission
 
-    if "admin" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
+    if "admin" not in user["per"] and "department" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     count = await db.zvms.activities.count_documents(

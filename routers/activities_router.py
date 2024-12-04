@@ -81,7 +81,7 @@ async def create_activity(payload: Activity, user=Depends(get_current_user), log
 
     id = result.inserted_id
 
-    log.with_text((await payload.log(user['id'])).replace("$PLACEHOLDER", id))
+    log.with_text((await payload.log(user['id'])).replace("$PLACEHOLDER", str(id)))
     await log.insert_log()
 
     return {"status": "ok", "code": 201, "data": str(id)}
