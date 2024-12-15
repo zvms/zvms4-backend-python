@@ -1,3 +1,4 @@
+from typing import Optional
 from typings.group import Group
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends
@@ -228,6 +229,8 @@ async def get_user_times_in_class(
     perpage: int = 10,
     exceeding: bool = True,
     shortage: bool = False,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
     search: str = "",
     user=Depends(get_current_user),
 ):
@@ -263,7 +266,10 @@ async def get_user_times_in_class(
     result = await db.zvms.users.aggregate(pipeline).to_list(None)
     time = []
     for user in result:
-        user_time = await calculate_time(str(user['_id']))
+        if start is not None and end is not None:
+            user_time = await calculate_time(str(user['_id']), (start, end))
+        else:
+            user_time = await calculate_time(str(user['_id']))
         if exceeding or shortage:
             more_on_campus = min(round(max(user_time['off-campus'] - 15, 0) / 2, 1), 6.0)
             more_off_campus = min(round(max(user_time['on-campus'] - 30, 0) / 3, 1), 6.0)
