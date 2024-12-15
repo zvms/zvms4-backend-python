@@ -165,7 +165,8 @@ async def calculate_special_activities(
 
 
 async def calculate_normal_activities(
-    user: str
+    user: str,
+    range: Optional[tuple[str, str]]=None
 ) -> dict[str, float]:
     # Read user's activity list
 
@@ -194,6 +195,8 @@ async def calculate_normal_activities(
             }
         },
     ]
+    if range is not None:
+        inject[0]["$match"]["date"] = {"$gte": range[0], "$lte": range[1]}
     activities = await db.zvms.activities.aggregate(inject).to_list(None)
 
     result = {
@@ -221,6 +224,7 @@ async def calculate_normal_activities(
 
 async def calculate_time(
     user: str,
+    range: Optional[tuple[str, str]]=None
 ) -> dict[str, float]:
     result = {
         "on-campus": 0.0,
@@ -229,7 +233,7 @@ async def calculate_time(
         "trophy": 0.0,
         "total": 0.0,
     }
-    normal = await calculate_normal_activities(user)
+    normal = await calculate_normal_activities(user, range=range)
     result["on-campus"] = normal["on-campus"]
     result["off-campus"] = normal["off-campus"]
     result["social-practice"] = normal["social-practice"]

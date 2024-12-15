@@ -293,7 +293,12 @@ async def read_user_activity(
 
 
 @router.get("/{user_oid}/time")
-async def read_user_time(user_oid: str, user=Depends(get_current_user)):
+async def read_user_time(
+    user_oid: str,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    user=Depends(get_current_user)
+):
     """
     Return user's time
     """
@@ -305,7 +310,13 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    result = await calculate_time(user_oid)
+    if (start is not None and end is None) or (start is None and end is not None):
+        raise HTTPException(status_code=400, detail="Invalid query")
+    
+    if start is not None and end is not None:
+        result = await calculate_time(user_oid, (start, end))
+    else:
+        result = await calculate_time(user_oid)
     return {
         "status": "ok",
         "code": 200,
