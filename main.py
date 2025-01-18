@@ -16,6 +16,14 @@ socket = socketio.ASGIApp(sio)
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "https://v4.zvms.site/"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.mount("/socket.io", socket)
 
 @sio.event
@@ -27,13 +35,6 @@ async def connect(sid, environ):
 async def disconnect(sid):
     print(f"disconnect {sid}")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # 注册事件
 app.add_event_handler("startup", connect_to_mongo)
