@@ -19,6 +19,8 @@ def get_client_clarity_user_id(request: Request) -> str:
     # Clarity User ID is stored in the cookie, with `_clck` as the key, whose content is the substring before content `%7C`
     if "_clck" in request.cookies:
         return request.cookies["_clck"].split("%7C")[0]
+    if "Clarity-ID" in request.headers:
+        return request.headers['Clarity-ID']
     return ''
 
 def binding_user_credentials(request: Request) -> dict:
