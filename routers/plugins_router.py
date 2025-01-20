@@ -32,7 +32,7 @@ class TranslateRequest(BaseModel):
 @router.get('/translate/deepl')
 def translate_deepl(text: str, lang: str):
     try:
-        result = PyDeepLX.translate(text, lang, 3)
+        result = PyDeepLX.translate(text, lang, 3, proxies=None)
         return {
             'status': 'ok',
             'code': 200,
@@ -43,4 +43,10 @@ def translate_deepl(text: str, lang: str):
             'status': 'error',
             'code': 429,
             'detail': 'Too many requests'
+        }
+    except:
+        return {
+            'status': 'error',
+            'code': 500,
+            'detail': 'Internal server error'
         }
