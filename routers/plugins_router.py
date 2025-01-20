@@ -5,9 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from database import db
 from pydantic import BaseModel
 from PyDeepLX import PyDeepLX
-from util.calculate import calculate_time
-from util.cert import check_password
-from util.get_class import get_activities_related_to_user
+from util.deepl import translate
 import requests
 
 from util.object_id import compulsory_temporary_token, get_current_user, validate_object_id
@@ -31,22 +29,4 @@ class TranslateRequest(BaseModel):
 
 @router.get('/translate/deepl')
 def translate_deepl(text: str, lang: str):
-    try:
-        result = PyDeepLX.translate(text, lang, 3, proxies=None)
-        return {
-            'status': 'ok',
-            'code': 200,
-            'data': result
-        }
-    except PyDeepLX.TooManyRequestsException:
-        return {
-            'status': 'error',
-            'code': 429,
-            'detail': 'Too many requests'
-        }
-    except:
-        return {
-            'status': 'error',
-            'code': 500,
-            'detail': 'Internal server error'
-        }
+    return translate(text, lang, 3)
