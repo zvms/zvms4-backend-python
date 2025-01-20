@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from database import db
 from pydantic import BaseModel
 from PyDeepLX import PyDeepLX
-from util.deepl import translate
+import json
 import requests
 
 from util.object_id import compulsory_temporary_token, get_current_user, validate_object_id
@@ -22,11 +22,13 @@ def get_word_oxford(word: str):
     }
 
 
-class TranslateRequest(BaseModel):
-    text: str
-    target_lang: str
-
-
 @router.get('/translate/deepl')
 def translate_deepl(text: str, lang: str):
-    return translate(text, lang, 3)
+    data = {'text': text, 'target_lang': lang}
+    data = json.dumps(data)
+    result = requests.post(f'http://127.0.0.1:1188/translate', data=data).json()
+    return {
+        'status': 'ok',
+        'code': 200,
+        'data': result
+    }
