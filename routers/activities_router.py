@@ -179,7 +179,8 @@ async def change_activity_status(
     if (
         "department" not in user["per"]
         and "admin" not in user["per"]
-        and (target_activity["type"] == "social" or target_activity["type"] == "scale" or target_activity["type"] == "specified")
+        and (target_activity["type"] == "social" or target_activity["type"] == "scale" or target_activity[
+        "type"] == "specified")
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
@@ -436,6 +437,61 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
     return {"status": "ok", "code": 200, "data": activity}
 
 
+@router.put('/{activity_oid}/member/{uid}/duration')
+async def update_activity_member_duration(activity_oid: str, uid: str, duration: float, user=Depends(get_current_user),
+                                         log=Depends(inject_log)):
+    """
+    Update activity member duration
+    """
+    log.with_text(
+        f"User {await get_user_name(user['id'])} updated activity member {await get_user_name(uid)}'s duration to {duration} in activity {activity_oid}")
+    await log.insert_log()
+
+    activity = await db.zvms.activities.find_one(
+        {"_id": validate_object_id(activity_oid)}
+    )
+
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    if (
+        user["id"] != activity["creator"]
+        and "admin" not in user["per"]
+        and "department" not in user["per"]
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    pipeline = [
+        {
+            "$set": {
+                "members": {
+                    "$map": {
+                        "input": "$members",
+                        "as": "member",
+                        "in": {
+                            "$cond": [
+                                {"$eq": ["$$member._id", uid]},
+                                {"$mergeObjects": ["$$member", {"duration": duration}]},
+                                "$$member"
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    ]
+
+    await db.zvms.activities.update_one(
+        {"_id": validate_object_id(activity_oid)},
+        pipeline
+    )
+
+    return {
+        "status": "ok",
+        "code": 200,
+    }
+
+
 @router.post("/{activity_oid}/member")
 async def user_activity_signup(
     activity_oid: str, member: ActivityMember, user=Depends(get_current_user), log=Depends(inject_log)
@@ -554,7 +610,8 @@ async def user_activity_signoff(
         {"_id": validate_object_id(activity_oid)}
     )
 
-    log.with_text(f"User {await get_user_name(user['id'])} removed user {await get_user_name(uid)} from activity {activity_oid} ({activity['name']})")
+    log.with_text(
+        f"User {await get_user_name(user['id'])} removed user {await get_user_name(uid)} from activity {activity_oid} ({activity['name']})")
     await log.insert_log()
 
     if not activity:
@@ -645,7 +702,7 @@ async def get_activity_ratings(activity_oid: str, user=Depends(get_current_user)
     # Check the average rating for each int-typed field, and remain the original value for other fields
 
     res = await db.zvms.ratings.find(
-        {"activity_id": activity_oid }
+        {"activity_id": activity_oid}
     ).to_list(None)
 
     result = {}
