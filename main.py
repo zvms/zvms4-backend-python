@@ -19,7 +19,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://v4.zvms.site"],
+    allow_origins=["http://localhost:5173", "https://v4.zvms.site", "https://v4-netlify.zvms.site/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
