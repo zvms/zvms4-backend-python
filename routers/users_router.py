@@ -104,11 +104,19 @@ async def change_password(
 
 
 @router.get("")
-async def read_users(query: str, user: Optional[str] = Depends(optional_current_user)):
+async def read_users(query: str, privilege: bool = False, user: Optional[str] = Depends(optional_current_user)):
     """
     Query users
     """
-    print(user)
+    if privilege:
+        groups = await db.zvms["groups"].find({
+            'permissions': {
+                '$in': ['admin', 'department']
+            }
+        })
+        selected = []
+        for group in groups:
+            selected.append(str(group['_id']))
     result = (
         await db.zvms["users"]
         .find(
@@ -119,7 +127,7 @@ async def read_users(query: str, user: Optional[str] = Depends(optional_current_
                 ] if user is not None else [
                     # should not search if not login.
                     {"id": query}
-                ]
+                ],
             },
             {
                 "name": True,
@@ -312,7 +320,7 @@ async def read_user_time(
 
     if (start is not None and end is None) or (start is None and end is not None):
         raise HTTPException(status_code=400, detail="Invalid query")
-    
+
     if start is not None and end is not None:
         result = await calculate_time(user_oid, (start, end))
     else:
