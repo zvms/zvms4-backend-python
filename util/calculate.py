@@ -1,6 +1,6 @@
 from typing import Optional
 from unittest import result
-
+from datetime import datetime
 from bson import ObjectId
 from database import db
 from util.get_class import get_user_classname
@@ -196,9 +196,9 @@ async def calculate_normal_activities(
         },
     ]
     if range is not None:
-        inject[0]["$match"]["date"] = {"$gte": range[0], "$lte": range[1]}
+        inject[0]["$match"]["date"] = {"$gte": datetime.fromisoformat(range[0]).isoformat(), "$lte": datetime.fromisoformat(range[1]).isoformat()}
     activities = await db.zvms.activities.aggregate(inject).to_list(None)
-
+    
     result = {
         "on-campus": 0.0,
         "off-campus": 0.0,
