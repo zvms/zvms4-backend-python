@@ -82,6 +82,7 @@ class Activity(BaseModel):
     status: ActivityStatus
     url: Optional[str | None] = None
     special: Optional[Special | None] = None
+    approver: str
 
     async def log(self, user: str=''):
         template = f'''User {await get_user_name(user)} created activity {self.name} with description {self.description} at {self.createdAt} (ID: $PLACEHOLDER). It involves users:'''
