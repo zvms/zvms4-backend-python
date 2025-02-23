@@ -34,17 +34,9 @@ class ActivityMember(BaseModel):
     async def log(self):
         return f'User {await get_user_name(self.id)} joined activity with mode {self.mode} and duration {self.duration}.'
 
-class ClassRegistration(BaseModel):
-    classid: int
-    max: int
-    min: int | None = None
-
 
 class Registration(BaseModel):
-    deadline: str  # ISO 8601
     place: str
-    duration: float
-    classes: list[ClassRegistration]
 
 
 class ActivityStatus(str, Enum):
@@ -63,9 +55,6 @@ class SpecialActivityClassify(str, Enum):
 
 class Special(BaseModel):
     classify: SpecialActivityClassify
-    prize: str | None = None
-    origin: str | None = None
-    reason: str | None = None
 
 
 class Activity(BaseModel):
@@ -80,7 +69,6 @@ class Activity(BaseModel):
     updatedAt: str  # ISO 8601
     creator: str
     status: ActivityStatus
-    url: Optional[str | None] = None
     special: Optional[Special | None] = None
     approver: str
 
