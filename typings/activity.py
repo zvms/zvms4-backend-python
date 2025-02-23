@@ -36,7 +36,7 @@ class ActivityMember(BaseModel):
 
 
 class Registration(BaseModel):
-    place: str
+    place: Optional[str | None] = None
 
 
 class ActivityStatus(str, Enum):
