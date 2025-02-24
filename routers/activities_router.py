@@ -269,10 +269,12 @@ async def read_activities(
         and mode == "class"
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
-    if type is None:
+    if type is None or type == 'all' or type == '':
         target_types = ["specified", "social", "scale", "special"]
     else:
-        target_types = "type".split(",")
+        target_types = type.split(",")
+    if len(target_types) == 0:
+        target_types = ["specified", "social", "scale", "special"]
     if mode == "campus":
         # Read activities
         result = []
