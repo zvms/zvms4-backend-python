@@ -269,6 +269,10 @@ async def read_activities(
         and mode == "class"
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
+    if type is None:
+        target_types = ["specified", "social", "scale", "special"]
+    else:
+        target_types = "type".split(",")
     if mode == "campus":
         # Read activities
         result = []
@@ -279,6 +283,7 @@ async def read_activities(
             {
                 "$match": {
                     "name": {"$regex": query, "$options": "i"},
+                    "type": {"$in": target_types}
                 }
             },
             {
