@@ -272,11 +272,11 @@ async def get_user_times_in_class(
             user_time = await calculate_time(str(user['_id']))
         if exceeding or shortage:
             more_on_campus = min(round(max(user_time['off-campus'] - 15, 0) / 2, 0), 6.0)
-            more_off_campus = min(round(max(user_time['on-campus'] - 30, 0) / 3, 0), 6.0)
+            more_off_campus = min(round(max(user_time['on-campus'] - 25, 0) / 3, 0), 6.0)
             user_time['on-campus'] += more_on_campus
             user_time['off-campus'] += more_off_campus
         if shortage:
-            user_time['on-campus'] = max(30 - user_time['on-campus'], 0)
+            user_time['on-campus'] = max(25 - user_time['on-campus'], 0)
             user_time['off-campus'] = max(15 - user_time['off-campus'], 0)
             user_time['social-practice'] = max(18 - user_time['social-practice'], 0)
         group = await db.zvms.groups.find_one({"_id": {"$in": list(map(lambda x: ObjectId(x), user['group']))}, "type": "class"})
