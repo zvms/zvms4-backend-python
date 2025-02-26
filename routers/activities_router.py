@@ -258,7 +258,6 @@ async def read_activities(
     # User permission check
     if (
         "admin" not in user["per"]
-        and "auditor" not in user["per"]
         and "department" not in user["per"]
         and mode == "campus"
     ):
@@ -279,7 +278,7 @@ async def read_activities(
         # Read activities
         result = []
 
-        audit = "auditor" in user["per"] or "admin" in user["per"]
+        audit = "admin" in user["per"]
 
         pipeline = [
             {
@@ -475,6 +474,7 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
                 "type": True,
                 "special": True,
                 "creator": True,
+                "createdAt": True,
                 "updatedAt": True,
                 "registration": True,
             }
@@ -615,8 +615,6 @@ async def read_activity_user(
     if (
         "department" not in user["per"]
         and "admin" not in user["per"]
-        and "auditor" not in user["per"]
-        and "inspector" not in user["per"]
         and ("secretary" not in user["per"])
         and user["id"] != str(validate_object_id(uid))
     ):
@@ -627,27 +625,6 @@ async def read_activity_user(
     ).to_list(None)
     return {"status": "ok", "code": 200, "data": activity[0]["members"][0]}
 
-
-@router.get("/{activity_oid}/member/{uid}/history")
-async def read_user_history(
-    activity_oid: str, uid: str, user=Depends(get_current_user)
-):
-    if (
-        "department" not in user["per"]
-        and "admin" not in user["per"]
-        and "auditor" not in user["per"]
-        and "inspector" not in user["per"]
-        and ("secretary" not in user["per"])
-        and user["id"] != str(validate_object_id(uid))
-    ):
-        raise HTTPException(status_code=403, detail="Permission denined.")
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid), "members._id": uid},
-        {"members.$": 1, "_id": 0},
-    )
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-    return {"status": "ok", "code": 200, "data": activity["members"][0]["history"]}
 
 
 @router.delete("/{activity_oid}/member/{uid}")
@@ -726,56 +703,4 @@ async def delete_activity(activity_oid: str, user=Depends(compulsory_temporary_t
     return {
         "status": "ok",
         "code": 200,
-    }
-
-
-@router.get("/{activity_oid}/ratings")
-async def get_activity_ratings(activity_oid: str, user=Depends(get_current_user)):
-    """
-    Get activity ratings
-    """
-
-    if "admin" not in user["per"] and "department" not in user["per"] and "rating" not in user["elg"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
-    )
-
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    if (
-        user["id"] != activity["creator"]
-        and "admin" not in user["per"]
-        and "department" not in user["per"]
-    ):
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    # Check the average rating for each int-typed field, and remain the original value for other fields
-
-    res = await db.zvms.ratings.find(
-        {"activity_id": activity_oid}
-    ).to_list(None)
-
-    result = {}
-    ratings = {}
-
-    for rating in res:
-        rating["_id"] = str(rating["_id"])
-        for key, value in rating.items():
-            if key in ["_id", "activity_id", "user_id"]:
-                continue
-            if isinstance(value, int):
-                if key not in result:
-                    result[key] = 0
-                result[key] += value
-
-    for key, value in result.items():
-        result[key] = value / len(ratings)
-
-    return {
-        "status": "ok",
-        "code": 200,
-        "data": result,
     }
