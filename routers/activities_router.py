@@ -1,3 +1,4 @@
+import re
 from io import BytesIO
 from typings.activity import (
     Activity,
@@ -254,6 +255,8 @@ async def read_activities(
     """
     Return activities
     """
+    if query != '' and 'admin' not in user['per']:
+        query = re.escape(query)
 
     # User permission check
     if (

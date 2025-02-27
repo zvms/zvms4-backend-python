@@ -1,3 +1,4 @@
+import re
 from typing import Optional
 from typings.group import Group
 from bson import ObjectId
@@ -146,6 +147,9 @@ async def get_class_activities(
     """
     Get activities related to a group
     """
+    if query != '' and 'admin' not in user['per']:
+        query = re.escape(query)
+
     same_class = False
     if "secretary" in user["per"]:
         target = await db.zvms.users.find_one({"_id": ObjectId(user["id"])})
