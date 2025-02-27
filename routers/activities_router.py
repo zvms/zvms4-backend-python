@@ -7,7 +7,7 @@ from typings.activity import (
     ActivityStatus,
     ActivityType,
     MemberActivityStatus,
-    SpecialActivityClassify,
+    SpecialActivityClassify, Special,
 )
 from fastapi import APIRouter, File, HTTPException, Depends, UploadFile
 import copy
@@ -92,7 +92,8 @@ async def create_activity(payload: Activity, user=Depends(get_current_user), log
 
 
 @router.post("/upload")
-async def upload_activity_excel(info: Activity, payload: UploadFile = File(...), user=Depends(get_current_user), log=Depends(inject_log)):
+async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File(...), user=Depends(get_current_user),
+                                log=Depends(inject_log)):
     """
     Upload activity excel
     """
@@ -115,16 +116,23 @@ async def upload_activity_excel(info: Activity, payload: UploadFile = File(...),
             raise HTTPException(status_code=400, detail="Invalid excel format")
 
         df.fillna(0.0)
-
         accepted_modes = ['On Campus', 'Off Campus', 'Social Practice']
+
+        info = Activity(_id='', type=ActivityType.special, name=name, description=desc, members=[], registration=None,
+                        date=datetime.now().isoformat(), createdAt=datetime.now().isoformat(),
+                        updatedAt=datetime.now().isoformat(), creator=user['id'], status=ActivityStatus.effective,
+                        special=Special(classify=SpecialActivityClassify.import_), approver='authority')
 
         for mode in accepted_modes:
             template = copy.deepcopy(info)
-            info.name += '| Mode: ' + mode
+            template.name += ' | Mode: ' + mode
             for idx, row in df.iterrows():
                 if row[mode] != 0.0 and not pd.isna(row[mode]):
-                    template.members.append(ActivityMember(_id=row['_id'], status=MemberActivityStatus.effective, mode=ActivityMode(mode.replace(' ', '-').lower()), duration=row[mode]))
-            await create_activity(template, user=user, log=log)
+                    template.members.append(ActivityMember(_id=row['_id'], id=row['_id'], status=MemberActivityStatus.effective,
+                                                           mode=ActivityMode(mode.replace(' ', '-').lower()),
+                                                           duration=row[mode]))
+            if len(user) != 0:
+                await create_activity(template, user=user, log=log)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -495,7 +503,7 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
 
 @router.put('/{activity_oid}/member/{uid}/duration')
 async def update_activity_member_duration(activity_oid: str, uid: str, duration: float, user=Depends(get_current_user),
-                                         log=Depends(inject_log)):
+                                          log=Depends(inject_log)):
     """
     Update activity member duration
     """
