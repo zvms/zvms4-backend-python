@@ -1,8 +1,12 @@
+import re
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
+from bcrypt import hashpw, gensalt
+from routers.activities_router import user_activity_signoff
 from typings.log import inject_log, ZVMSLog
+from typings.user import User
 from util.calculate import calculate_time
 from util.group import is_in_a_same_class
 from util.logify import binding_user_credentials
@@ -54,6 +58,52 @@ async def auth_user(auth: AuthUser, request: Request, meta=Depends(binding_user_
     return {
         "token": result,
         "_id": id,
+    }
+
+@router.post("")
+async def create_user(
+    target_user: User,
+    actioner=Depends(compulsory_temporary_token),
+    log=Depends(inject_log)
+):
+    log.with_text(f'''User {target_user.name} is created by {await get_user_name(actioner['id'])}''')
+    await log.insert_log()
+
+    # Check user's permission
+    if "admin" not in actioner["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    document = target_user.model_dump()
+
+    id = str(document['id'])
+    document['id'] = id
+    document['password'] = hashpw(id.encode('utf-8'), gensalt())
+
+    result = await db.zvms.users.insert_one(document)
+
+    return {
+        "status": "ok",
+        "code": 201,
+        "data": str(result.inserted_id)
+    }
+
+@router.delete("/{target}")
+async def delete_user(
+    target: str,
+    user=Depends(compulsory_temporary_token),
+    log=Depends(inject_log)
+):
+    validate_object_id(target)
+    log.with_text(f'''User {await get_user_name(target)} ({target}) is deleted by {await get_user_name(user['id'])}''')
+    await log.insert_log()
+    # Remove all activity records of the user
+    metadata = await read_user_activity(target, page=-1, user=user, query='', perpage=1000)
+    for activity in metadata['data']:
+        await user_activity_signoff(str(activity['_id']), uid=target, user=user, log=log)
+    await db.zvms.users.delete_one({"_id": validate_object_id(target)})
+    return {
+        "status": "ok",
+        "code": 200
     }
 
 
@@ -168,7 +218,7 @@ async def read_user(user_oid: str):
 class PutUser(BaseModel):
     name: str
     id: str
-    groups: list[str]
+    group: list[str]
 
 
 @router.put("/{user_oid}")
@@ -190,7 +240,7 @@ async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulso
             "$set": {
                 "name": user_struct.name,
                 "id": user_struct.id,
-                "group": user_struct.groups,
+                "group": user_struct.group,
             }
         },
     )
@@ -245,9 +295,12 @@ async def read_user_activity(
     if "admin" not in user["per"] and "department" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
+    if query != '' and 'admin' not in user['per']:
+        query = re.escape(query)
+
     count = await db.zvms.activities.count_documents(
         {"members._id": str(validate_object_id(user_oid))},
-        # {"name": {"$regex": query, "$options": "i"}},
+        # {"name": {"$regex": query}},
     )
     # Read user's activities
     pipeline = [
@@ -280,8 +333,9 @@ async def read_user_activity(
             }
         },
         {'$skip': 0 if page == -1 else (page - 1) * perpage},
-        {'$limit': 0 if page == -1 else perpage}
     ]
+    if page != -1:
+        pipeline.append({'$limit': perpage})
 
     all_activities = (
         await db.zvms.activities.aggregate(pipeline).to_list(None if page == -1 else perpage)
