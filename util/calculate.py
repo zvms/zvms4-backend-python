@@ -240,7 +240,7 @@ async def calculate_time(
     result["total"] = (
         normal["on-campus"] + normal["off-campus"] + normal["social-practice"]
     )
-    result["on-campus"] = round(result["on-campus"], 0)
-    result["off-campus"] = round(result["off-campus"], 0)
-    result["social-practice"] = round(result["social-practice"], 0)
+    result["on-campus"] = round(result["on-campus"], 1)
+    result["off-campus"] = round(result["off-campus"], 1)
+    result["social-practice"] = round(result["social-practice"], 1)
     return result
