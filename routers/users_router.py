@@ -77,7 +77,7 @@ async def create_user(
 
     id = str(document['id'])
     document['id'] = id
-    document['password'] = hashpw(id.encode('utf-8'), gensalt())
+    document['password'] = hashpw(id.encode('utf-8'), gensalt()).decode('utf-8')
 
     result = await db.zvms.users.insert_one(document)
 
