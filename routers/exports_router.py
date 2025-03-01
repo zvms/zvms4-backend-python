@@ -100,6 +100,7 @@ async def export_time(
     background_tasks.add_task(process_task, task_id)
     return {
         "code": 201,
+        "status": "ok",
         "data": task_id
     }
 
@@ -113,6 +114,7 @@ async def get_export(task_id: str):
     del result['result']
     return {
         "code": 200,
+        "status": "ok",
         "data": result
     }
 
@@ -139,3 +141,23 @@ async def get_export_file(task_id: str):
             raise HTTPException(status_code=400, detail="Invalid format")
         buffer.write(tmp.read())
     return FileResponse(tmp.name, media_type=task.format.mime())
+
+
+@router.get("")
+async def get_export_list():
+    result = []
+    for task_id, task in task_store.items():
+        result.append({
+            "id": task_id,
+            "status": task.status,
+            "variant": task.variant,
+            "format": task.format,
+            "task_start": task.task_start,
+            "task_end": task.task_end,
+            "percentage": task.percentage
+        })
+    return {
+        "code": 200,
+        "status": "ok",
+        "data": result
+    }
