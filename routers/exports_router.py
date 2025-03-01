@@ -1,30 +1,16 @@
-import os
-import re
 import uuid
-from io import BytesIO
-from typing import Optional, Dict
-from anyio.abc import TaskStatus
-from fastapi import APIRouter, File, HTTPException, Depends, UploadFile
+from typing import Dict
+from fastapi import APIRouter, HTTPException, Depends
 import tempfile
 from typings.export import ExportFormat, ExportTask, ExportStatus, ExportVariant
 from util.calculate import calculate_time
-from util.get_class import get_activities_related_to_user
-from util.group import is_in_a_same_class
-from util.user import get_user_name
 from fastapi.responses import FileResponse
 from io import BytesIO
-from util.object_id import compulsory_temporary_token, get_current_user, validate_object_id
+from util.object_id import get_current_user, validate_object_id
 from datetime import datetime
 from database import db
-from pydantic import BaseModel
 import pandas as pd
-import time
-import threading
-from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, BackgroundTasks
-from fastapi.responses import JSONResponse
-from queue import Queue
-from enum import Enum
+from fastapi import BackgroundTasks
 from pydantic import BaseModel
 
 task_store: Dict[str, ExportTask] = {}
