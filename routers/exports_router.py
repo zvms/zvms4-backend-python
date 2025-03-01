@@ -1,244 +1,141 @@
-# import pandas as pd
-# from h11 import Request
-# from pydantic import BaseModel
-#
-# from typings.export import Export, ExportFormat, ExportStatus, ExportResponse
-# from fastapi import APIRouter, Depends, HTTPException, Response
-# from bson import ObjectId
-# from database import connect_to_mongo, db
-# from util.time_export import calculate, json2csv, json2xlsx
-# from utils import get_current_user
-# from uuid import uuid4
-# import datetime
-# import asyncio
-#
-# router = APIRouter()
-#
-# exports: list[ExportResponse] = []
-#
-#
-# @router.post('')
-# async def create_exports(
-#     # mode: Export,
-#     # user=Depends(get_current_user)
-# ):
-#     pipeline = \
-#         [
-#             {
-#                 '$lookup': {
-#                     'from': 'activities',
-#                     'let': {
-#                         'userIdStr': {
-#                             '$toString': '$_id'
-#                         }
-#                     },
-#                     'pipeline': [
-#                         {
-#                             '$unwind': '$members'
-#                         }, {
-#                             '$match': {
-#                                 '$expr': {
-#                                     '$and': [
-#                                         {
-#                                             '$eq': [
-#                                                 '$members._id', '$$userIdStr'
-#                                             ]
-#                                         }, {
-#                                             '$eq': [
-#                                                 '$members.status', 'effective'
-#                                             ]
-#                                         }
-#                                     ]
-#                                 }
-#                             }
-#                         }
-#                     ],
-#                     'as': 'user_activities'
-#                 }
-#             }, {
-#                 '$addFields': {
-#                     'groupObjectIds': {
-#                         '$map': {
-#                             'input': '$group',
-#                             'as': 'groupIdStr',
-#                             'in': {
-#                                 '$toObjectId': '$$groupIdStr'
-#                             }
-#                         }
-#                     }
-#                 }
-#             }, {
-#                 '$lookup': {
-#                     'from': 'groups',
-#                     'let': {
-#                         'userGroups': '$groupObjectIds'
-#                     },
-#                     'pipeline': [
-#                         {
-#                             '$match': {
-#                                 '$expr': {
-#                                     '$and': [
-#                                         {
-#                                             '$in': [
-#                                                 '$_id', '$$userGroups'
-#                                             ]
-#                                         }, {
-#                                             '$eq': [
-#                                                 '$type', 'class'
-#                                             ]
-#                                         }
-#                                     ]
-#                                 }
-#                             }
-#                         }, {
-#                             '$project': {
-#                                 'name': 1
-#                             }
-#                         }
-#                     ],
-#                     'as': 'user_classes'
-#                 }
-#             }, {
-#                 '$unwind': '$user_activities'
-#             }, {
-#                 '$group': {
-#                     '_id': {
-#                         'userId': '$_id',
-#                         'mode': '$user_activities.members.mode',
-#                         'name': '$name',
-#                         'userIdNumber': '$id',
-#                         'class': {
-#                             '$arrayElemAt': [
-#                                 '$user_classes.name', 0
-#                             ]
-#                         }
-#                     },
-#                     'totalDuration': {
-#                         '$sum': '$user_activities.members.duration'
-#                     }
-#                 }
-#             }, {
-#                 '$group': {
-#                     '_id': '$_id.userId',
-#                     'name': {
-#                         '$first': '$_id.name'
-#                     },
-#                     'id': {
-#                         '$first': '$_id.userIdNumber'
-#                     },
-#                     'class': {
-#                         '$first': '$_id.class'
-#                     },
-#                     'modes': {
-#                         '$push': {
-#                             'mode': '$_id.mode',
-#                             'totalDuration': '$totalDuration'
-#                         }
-#                     }
-#                 }
-#             }, {
-#                 '$project': {
-#                     '_id': 0,
-#                     'id': 1,
-#                     'name': 1,
-#                     'class': 1,
-#                     'on_campus': {
-#                         '$cond': {
-#                             'if': {
-#                                 '$in': [
-#                                     'on-campus', '$modes.mode'
-#                                 ]
-#                             },
-#                             'then': {
-#                                 '$arrayElemAt': [
-#                                     {
-#                                         '$filter': {
-#                                             'input': '$modes',
-#                                             'as': 'mode',
-#                                             'cond': {
-#                                                 '$eq': [
-#                                                     '$$mode.mode', 'on-campus'
-#                                                 ]
-#                                             }
-#                                         }
-#                                     }, 0
-#                                 ]
-#                             },
-#                             'else': {
-#                                 'mode': 'on-campus',
-#                                 'totalDuration': 0
-#                             }
-#                         }
-#                     },
-#                     'off_campus': {
-#                         '$cond': {
-#                             'if': {
-#                                 '$in': [
-#                                     'off-campus', '$modes.mode'
-#                                 ]
-#                             },
-#                             'then': {
-#                                 '$arrayElemAt': [
-#                                     {
-#                                         '$filter': {
-#                                             'input': '$modes',
-#                                             'as': 'mode',
-#                                             'cond': {
-#                                                 '$eq': [
-#                                                     '$$mode.mode', 'off-campus'
-#                                                 ]
-#                                             }
-#                                         }
-#                                     }, 0
-#                                 ]
-#                             },
-#                             'else': {
-#                                 'mode': 'off-campus',
-#                                 'totalDuration': 0
-#                             }
-#                         }
-#                     },
-#                     'social_practice': {
-#                         '$cond': {
-#                             'if': {
-#                                 '$in': [
-#                                     'social-practice', '$modes.mode'
-#                                 ]
-#                             },
-#                             'then': {
-#                                 '$arrayElemAt': [
-#                                     {
-#                                         '$filter': {
-#                                             'input': '$modes',
-#                                             'as': 'mode',
-#                                             'cond': {
-#                                                 '$eq': [
-#                                                     '$$mode.mode', 'social-practice'
-#                                                 ]
-#                                             }
-#                                         }
-#                                     }, 0
-#                                 ]
-#                             },
-#                             'else': {
-#                                 'mode': 'social-practice',
-#                                 'totalDuration': 0
-#                             }
-#                         }
-#                     }
-#                 }
-#             }, {
-#                 '$project': {
-#                     'id': 1,
-#                     'name': 1,
-#                     'class': 1,
-#                     'on-campus': '$on_campus.totalDuration',
-#                     'off-campus': '$off_campus.totalDuration',
-#                     'social-practice': '$social_practice.totalDuration'
-#                 }
-#             }
-#         ]
-#     result = await db.zvms.activities.aggregate(pipeline).to_list(None)
-#     df = pd.DataFrame(result)
-#     print(df)
-#     return 123
+import os
+import re
+import uuid
+from io import BytesIO
+from typing import Optional, Dict
+from anyio.abc import TaskStatus
+from fastapi import APIRouter, File, HTTPException, Depends, UploadFile
+import tempfile
+from typings.export import ExportFormat, ExportTask, ExportStatus, ExportVariant
+from util.calculate import calculate_time
+from util.get_class import get_activities_related_to_user
+from util.group import is_in_a_same_class
+from util.user import get_user_name
+from fastapi.responses import FileResponse
+from io import BytesIO
+from util.object_id import compulsory_temporary_token, get_current_user, validate_object_id
+from datetime import datetime
+from database import db
+from pydantic import BaseModel
+import pandas as pd
+import time
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from fastapi import FastAPI, BackgroundTasks
+from fastapi.responses import JSONResponse
+from queue import Queue
+from enum import Enum
+from pydantic import BaseModel
+
+task_store: Dict[str, ExportTask] = {}
+
+
+class CreateExport(BaseModel):
+    start: str = ''
+    end: str = ''
+    format: ExportFormat
+
+
+router = APIRouter()
+
+async def process_task(task_id: str):
+    task = task_store.get(task_id)
+    if not task:
+        return
+    task.task_start = datetime.now()
+    task.status = ExportStatus.processing
+    if task.variant == ExportVariant.time:
+        result = []
+        users = await db.zvms.users.find({}).to_list(None)
+        for idx, user in enumerate(users):
+            if task.export_start is not None and task.export_start is not None:
+                user_time = await calculate_time(str(user['_id']), (task.export_start.isoformat(), task.export_end.isoformat()))
+            else:
+                user_time = await calculate_time(str(user['_id']))
+                more_on_campus = min(round(max(user_time['off-campus'] - 15, 1) / 2, 0), 6.0)
+                more_off_campus = min(round(max(user_time['on-campus'] - 25, 1) / 3, 0), 6.0)
+                user_time['on-campus'] += more_on_campus
+                user_time['off-campus'] += more_off_campus
+            group = await db.zvms.groups.find_one(
+                {"_id": {"$in": list(map(lambda x: validate_object_id(x), user['group']))}, "type": "class"})
+            if group is None:
+                continue
+            doc = {
+                '_id': str(user["_id"]),
+                'name': user["name"],
+                'id': str(user["id"]),
+                'group': group['name'],
+                'on-campus': user_time["on-campus"],
+                'off-campus': user_time["off-campus"],
+                'social-practice': user_time["social-practice"]
+            }
+            result.append(doc)
+            task.percentage = (idx + 1) / len(users) * 100
+        df = pd.DataFrame(result)
+        task.result = df
+        task.status = ExportStatus.completed
+
+
+@router.post("/time")
+async def export_time(
+    properties: CreateExport,
+    background_tasks: BackgroundTasks,
+    user=Depends(get_current_user)
+):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail='Permission denied')
+    task_id = str(uuid.uuid4())
+    task = ExportTask(
+        id=task_id,
+        status=ExportStatus.pending,
+        format=properties.format,
+        variant=ExportVariant.time,
+        export_start=datetime.fromisoformat(properties.start) if properties.start != '' else None,
+        export_end=datetime.fromisoformat(properties.end) if properties.end != '' else None,
+        task_start=datetime.now(),
+        task_end=None,
+        result=None
+    )
+    task_store[task_id] = task
+    background_tasks.add_task(process_task, task_id)
+    return {
+        "code": 201,
+        "data": task_id
+    }
+
+
+@router.get("/{task_id}")
+async def get_export(task_id: str):
+    task = task_store.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    result = task.model_dump()
+    del result['result']
+    return {
+        "code": 200,
+        "data": result
+    }
+
+@router.get("/{task_id}/file")
+async def get_export_file(task_id: str):
+    task = task_store.get(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status != ExportStatus.completed:
+        raise HTTPException(status_code=400, detail="Task not completed")
+    buffer = BytesIO()
+    with tempfile.NamedTemporaryFile(suffix=f'.{task.format.suffix()}', delete=False) as tmp:
+        if task.format == ExportFormat.excel:
+            task.result.to_excel(tmp.name, index_label=False)
+        elif task.format == ExportFormat.csv:
+            task.result.to_csv(tmp.name, index_label=False)
+        elif task.format == ExportFormat.json:
+            task.result.to_json(tmp.name)
+        elif task.format == ExportFormat.latex:
+            task.result.to_latex(tmp.name)
+        elif task.format == ExportFormat.html:
+            task.result.to_html(tmp.name)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid format")
+        buffer.write(tmp.read())
+    return FileResponse(tmp.name, media_type=task.format.mime())

@@ -6,7 +6,8 @@ from routers import (
     activities_router,
     groups_router,
     trophies_router,
-    plugins_router
+    plugins_router,
+    exports_router
 )
 from database import close_mongo_connection, connect_to_mongo
 import socketio
@@ -37,11 +38,11 @@ async def disconnect(sid):
     print(f"disconnect {sid}")
 
 
-# 注册事件
+# Register events
 app.add_event_handler("startup", connect_to_mongo)
 app.add_event_handler("shutdown", close_mongo_connection)
 
-# 注册路由
+# Register routes
 app.include_router(users_router.router, prefix="/api/user", tags=["users"])
 app.include_router(
     activities_router.router, prefix="/api/activity", tags=["activities"]
@@ -52,6 +53,26 @@ app.include_router(
 app.include_router(groups_router.router, prefix="/api/group", tags=["groups"])
 app.include_router(trophies_router.router, prefix="/api/trophy", tags=["trophies"])
 app.include_router(plugins_router.router, prefix='/api/plugin', tags=['plugins', 'calculator', 'dictionary'])
+app.include_router(exports_router.router, prefix='/api/exports', tags=['exports'])
+
+@app.router.get("/api/")
+async def home():
+    return {"status": "ok", "code": 200, "data": {
+        "message": "Welcome to ZVMS API",
+        "version": "0.1.0-alpha.1",
+        "author": "ZZDev",
+        "license": "MIT",
+        "source": "https://github.com/zvms/zvms4-backend-python.git",
+        "apis": {
+            "user": "/api/user",
+            "activity": "/api/activity",
+            "notification": "/api/notification",
+            "group": "/api/group",
+            "trophy": "/api/trophy",
+            "plugin": "/api/plugin",
+            "exports": "/api/exports"
+        }
+    }}
 
 
 # Custom exception handler for internal server errors

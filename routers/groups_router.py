@@ -290,10 +290,10 @@ async def get_user_times_in_class(
             '_id': str(user["_id"]),
             'name': user["name"],
             'id': str(user["id"]),
+            'group': group['name'],
             'on-campus': user_time["on-campus"],
             'off-campus': user_time["off-campus"],
-            'social-practice': user_time["social-practice"],
-            'group': group['name']
+            'social-practice': user_time["social-practice"]
         }
         time.append(doc)
     return {"status": "ok", "code": 200, "data": time, "metadata": {"size": count}}
