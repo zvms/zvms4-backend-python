@@ -119,7 +119,7 @@ async def get_export(task_id: str):
     task = await db.zvms.tasks.find_one({"id": uuid.UUID(task_id)})
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    # del task['result']
+    del task['result']
     task['_id'] = str(task['_id'])
     return {
         "code": 200,
