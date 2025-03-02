@@ -1,4 +1,5 @@
 import uuid
+from time import sleep
 from typing import Dict
 from fastapi import APIRouter, HTTPException, Depends
 import tempfile
@@ -57,6 +58,7 @@ async def process_task(task_id: str):
             }
             result.append(doc)
             task.percentage = (idx + 1) / len(users) * 100
+            sleep(0.01)
         df = pd.DataFrame(result)
         task.result = df
         task.status = ExportStatus.completed
