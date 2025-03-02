@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -49,8 +50,7 @@ class ExportVariant(Enum):
 
 
 class ExportTask(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    id: str # UUID
+    id: uuid.UUID # UUID
     status: ExportStatus
     format: ExportFormat
     variant: ExportVariant
@@ -60,10 +60,4 @@ class ExportTask(BaseModel):
     task_end: Optional[datetime]
     percentage: float = 0
     errmsg: str = ''
-    result: Optional[DataFrame]
-
-    @field_validator("result", mode="before")
-    def validate_dataframe(cls, value):
-        if value is not None and not isinstance(value, DataFrame):
-            raise ValueError("df must be a pandas DataFrame")
-        return value
+    result: Optional[list[dict]]

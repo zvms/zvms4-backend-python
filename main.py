@@ -12,6 +12,7 @@ from routers import (
 from database import close_mongo_connection, connect_to_mongo
 import socketio
 from fastapi.middleware.cors import CORSMiddleware
+from database import db
 
 sio = socketio.AsyncServer(async_mode="asgi")
 socket = socketio.ASGIApp(sio)
@@ -36,6 +37,13 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     print(f"disconnect {sid}")
+
+
+async def mark_all_tasks_failed():
+    await db.zvms.tasks.update_many(
+        {"status": {"$ne": "completed"}},
+        {"$set": {"status": "failed", "errmsg": "Program interrupted unexpectedly"}}
+    )
 
 
 # Register events
