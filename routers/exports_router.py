@@ -151,7 +151,7 @@ async def get_export_file(task_id: str):
         else:
             raise HTTPException(status_code=400, detail="Invalid format")
         buffer.write(tmp.read())
-        await db.zvms.tasks.delete_one({"id": task_id})
+        await db.zvms.tasks.delete_one({"id": uuid.UUID(task_id)})
     return FileResponse(tmp.name, media_type=ExportFormat(task['format']).mime())
 
 
