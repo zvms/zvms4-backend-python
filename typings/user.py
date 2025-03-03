@@ -35,6 +35,7 @@ class User(BaseModel):
     name: str
     sex: UserSex
     group: list[str]
+    past: list[str]
     eligibility: list[UserEligibility] = field(default_factory=list)
 
 

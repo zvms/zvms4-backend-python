@@ -7,7 +7,8 @@ from routers import (
     groups_router,
     trophies_router,
     plugins_router,
-    exports_router
+    exports_router,
+    imports_router
 )
 from database import close_mongo_connection, connect_to_mongo
 import socketio
@@ -62,6 +63,7 @@ app.include_router(groups_router.router, prefix="/api/group", tags=["groups"])
 app.include_router(trophies_router.router, prefix="/api/trophy", tags=["trophies"])
 app.include_router(plugins_router.router, prefix='/api/plugin', tags=['plugins', 'calculator', 'dictionary'])
 app.include_router(exports_router.router, prefix='/api/exports', tags=['exports'])
+app.include_router(imports_router.router, prefix='/api/imports', tags=['imports'])
 
 @app.router.get("/api/")
 async def home():
@@ -78,7 +80,8 @@ async def home():
             "group": "/api/group",
             "trophy": "/api/trophy",
             "plugin": "/api/plugin",
-            "exports": "/api/exports"
+            "exports": "/api/exports",
+            "imports": "/api/imports"
         }
     }}
 

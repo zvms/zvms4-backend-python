@@ -38,10 +38,6 @@ async def auth_user(auth: AuthUser, request: Request, meta=Depends(binding_user_
     log = ZVMSLog(str(request.url), auth.id, meta['clarity_id'], f'''User {await get_user_name(id)} is logging in''',
                   meta['ip'], datetime.timestamp(datetime.now()))
 
-    if not log.includes_clarity:
-        raise HTTPException(status_code=400,
-                            detail=f'''Outdated frontend version. You should refresh pages until a prompt appears, or reinstall the browser.''')
-
     await log.insert_log()
 
     if mode is None:
@@ -177,6 +173,7 @@ async def read_users(query: str = '', page: int = 1, perpage: int = 5, privilege
         "$or": [
             {"name": {"$regex": query, "$options": "i"}},
             {"id": {"$regex": query, "$options": "i"}},
+            {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}}
         ] if user is not None else [
             # should not search if not login.
             {"id": query}
@@ -189,6 +186,7 @@ async def read_users(query: str = '', page: int = 1, perpage: int = 5, privilege
                 "$or": [
                     {"name": {"$regex": query, "$options": "i"}},
                     {"id": {"$regex": query, "$options": "i"}},
+                    {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}}
                 ] if user is not None else [
                     # should not search if not login.
                     {"id": query}
@@ -250,6 +248,15 @@ async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulso
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
+    user_info = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
+
+    pasts = []
+
+    if user_info['name'] != user_struct.name:
+        pasts.append(user_info['name'])
+    if user_info['id'] != user_struct.id:
+        pasts.append(user_info['id'])
+
     # Update user's information
     await db.zvms.users.update_one(
         {"_id": validate_object_id(user_oid)},
@@ -258,6 +265,11 @@ async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulso
                 "name": user_struct.name,
                 "id": user_struct.id,
                 "group": user_struct.group,
+            },
+            "$push": {
+                "past": {
+                    "$each": pasts
+                }
             }
         },
     )
