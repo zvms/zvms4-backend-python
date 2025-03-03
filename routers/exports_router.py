@@ -1,3 +1,4 @@
+
 import uuid
 from time import sleep
 
@@ -56,7 +57,7 @@ async def process_task(task_id: str):
                 'group': group['name'],
                 'on-campus': user_time["on-campus"],
                 'off-campus': user_time["off-campus"],
-                'social-practice': user_time["social-practice"]
+                'social-practice': user_
             }
             result.append(doc)
             task['percentage'] = (idx + 1) / len(users) * 100
@@ -174,3 +175,4 @@ async def get_export_list():
         "status": "ok",
         "data": result
     }
+
