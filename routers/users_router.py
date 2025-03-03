@@ -39,7 +39,8 @@ async def auth_user(auth: AuthUser, request: Request, meta=Depends(binding_user_
                   meta['ip'], datetime.timestamp(datetime.now()))
 
     if not log.includes_clarity:
-        raise HTTPException(status_code=400, detail=f'''Outdated frontend version. You should refresh pages until a prompt appears, or reinstall the browser.''')
+        raise HTTPException(status_code=400,
+                            detail=f'''Outdated frontend version. You should refresh pages until a prompt appears, or reinstall the browser.''')
 
     await log.insert_log()
 
@@ -59,6 +60,7 @@ async def auth_user(auth: AuthUser, request: Request, meta=Depends(binding_user_
         "token": result,
         "_id": id,
     }
+
 
 @router.post("")
 async def create_user(
@@ -87,12 +89,15 @@ async def create_user(
         "data": str(result.inserted_id)
     }
 
+
 @router.delete("/{target}")
 async def delete_user(
     target: str,
     user=Depends(compulsory_temporary_token),
     log=Depends(inject_log)
 ):
+    if target == user['id']:
+        raise HTTPException(status_code=400, detail='You can\'t delete yourself.')
     validate_object_id(target)
     log.with_text(f'''User {await get_user_name(target)} ({target}) is deleted by {await get_user_name(user['id'])}''')
     await log.insert_log()
@@ -154,7 +159,8 @@ async def change_password(
 
 
 @router.get("")
-async def read_users(query: str, privilege: bool = False, user: Optional[str] = Depends(optional_current_user)):
+async def read_users(query: str = '', page: int = 1, perpage: int = 5, privilege: bool = False,
+                     user: Optional[str] = Depends(optional_current_user)):
     """
     Query users
     """
@@ -167,6 +173,15 @@ async def read_users(query: str, privilege: bool = False, user: Optional[str] = 
         selected = []
         for group in groups:
             selected.append(str(group['_id']))
+    count = await db.zvms.users.count_documents({
+        "$or": [
+            {"name": {"$regex": query, "$options": "i"}},
+            {"id": {"$regex": query, "$options": "i"}},
+        ] if user is not None else [
+            # should not search if not login.
+            {"id": query}
+        ],
+    })
     result = (
         await db.zvms["users"]
         .find(
@@ -186,13 +201,15 @@ async def read_users(query: str, privilege: bool = False, user: Optional[str] = 
             },
         )
         .sort({"id": 1})
-        .to_list(5)
+        .skip(0 if page == -1 else (page - 1) * perpage)
+        .limit(perpage if page == -1 else perpage)
+        .to_list(0 if page == -1 else perpage)
     )
 
     for user in result:
         user["_id"] = str(user["_id"])
 
-    return {"status": "ok", "code": 200, "data": result}
+    return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
 
 
 @router.get("/{user_oid}")
@@ -292,7 +309,8 @@ async def read_user_activity(
     """
     # Check user's permission
 
-    if "admin" not in user["per"] and "department" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
+    if "admin" not in user["per"] and "department" not in user["per"] and user["id"] != str(
+        validate_object_id(user_oid)):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     if query != '' and 'admin' not in user['per']:
