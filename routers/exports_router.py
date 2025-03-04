@@ -57,7 +57,7 @@ async def process_task(task_id: str):
                 'group': group['name'],
                 'on-campus': user_time["on-campus"],
                 'off-campus': user_time["off-campus"],
-                'social-practice': user_
+                'social-practice': user_time["social-practice"]
             }
             result.append(doc)
             task['percentage'] = (idx + 1) / len(users) * 100
@@ -70,7 +70,7 @@ async def process_task(task_id: str):
                     }
                 }})
                 result = []
-                sleep(0.05)
+                sleep(0.01)
         await db.zvms.tasks.update_one({"id": uuid.UUID(task_id)}, {"$set": {
             "percentage": 100,
             "status": ExportStatus.completed,
