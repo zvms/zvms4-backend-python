@@ -199,7 +199,7 @@ async def change_activity_status(
 @router.get("")
 async def read_activities(
     type: str | None,
-    mode: str,
+    mode: str | None,
     page: int = -1,
     perpage: int = 10,
     query: str = "",
@@ -215,13 +215,6 @@ async def read_activities(
     if (
         "admin" not in user["per"]
         and "department" not in user["per"]
-        and mode == "campus"
-    ):
-        raise HTTPException(status_code=403, detail="Permission denied")
-    elif (
-        "secretary" not in user["per"]
-        and "admin" not in user["per"]
-        and mode == "class"
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     if type is None or type == 'all' or type == '':
@@ -230,7 +223,7 @@ async def read_activities(
         target_types = type.split(",")
     if len(target_types) == 0:
         target_types = ["specified", "social", "scale", "special"]
-    if mode == "campus":
+    if True:
         # Read activities
         result = []
 
@@ -298,7 +291,7 @@ async def read_activities(
         ]
 
         count = await db.zvms.activities.count_documents(
-            {"name": {"$regex": query, "$options": "i"}}
+            {"name": {"$regex": query, "$options": "i"}, "type": {"$in": target_types}}
         )
         activities = await db.zvms.activities.aggregate(pipeline).to_list(None)
         for activity in activities:
@@ -307,16 +300,6 @@ async def read_activities(
             "status": "ok",
             "code": 200,
             "data": activities,
-            "metadata": {"size": count},
-        }
-    elif mode == "class":
-        result, count = await get_activities_related_to_user(
-            user["id"], page, perpage, query
-        )
-        return {
-            "status": "ok",
-            "code": 200,
-            "data": result,
             "metadata": {"size": count},
         }
 
