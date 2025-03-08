@@ -20,16 +20,18 @@ from datetime import datetime
 from database import db
 import pandas as pd
 
+from utils import validate_object_id
+
 router = APIRouter()
 
-@router.post("/activity")
+@router.post("/activities")
 async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File(...), user=Depends(get_current_user),
                                 log=Depends(inject_log)):
     """
     Upload activity excel
     """
 
-    expected_columns = ['_id', 'ID', 'Name', 'Class ID', 'On Campus', 'Off Campus', 'Social Practice']
+    expected_columns = ['_id', 'ID', 'Name', 'Class', 'On Campus', 'Off Campus', 'Social Practice']
 
     try:
         contents = await payload.read()
@@ -74,7 +76,7 @@ async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File
                         template.members.append(ActivityMember(_id=row['_id'], id=row['_id'], status=MemberActivityStatus.effective,
                                                                mode=ActivityMode(mode.replace(' ', '-').lower()),
                                                                duration=row[mode]))
-            if len(user) != 0:
+            if len(template.members) != 0:
                 await create_activity(template, user=user, log=log)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

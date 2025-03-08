@@ -1,7 +1,5 @@
-
 import uuid
 from time import sleep
-
 from fastapi import APIRouter, HTTPException, Depends
 import tempfile
 from typings.export import ExportFormat, ExportTask, ExportStatus, ExportVariant
@@ -52,12 +50,12 @@ async def process_task(task_id: str):
                 continue
             doc = {
                 '_id': str(user["_id"]),
-                'name': user["name"],
-                'id': str(user["id"]),
-                'group': group['name'],
-                'on-campus': user_time["on-campus"],
-                'off-campus': user_time["off-campus"],
-                'social-practice': user_time["social-practice"]
+                'Name': user["name"],
+                'ID': str(user["id"]),
+                'Group': group['name'],
+                'On Campus': user_time["on-campus"],
+                'Off Campus': user_time["off-campus"],
+                'Social Practice': user_time["social-practice"]
             }
             result.append(doc)
             task['percentage'] = (idx + 1) / len(users) * 100
@@ -80,6 +78,80 @@ async def process_task(task_id: str):
                 "$each": result
             }
         }})
+    elif task['variant'] == 'users':
+        result = []
+        users = await db.zvms.users.find({}).to_list(None)
+        for idx, user in enumerate(users):
+            group = await db.zvms.groups.find_one(
+                {"_id": {"$in": list(map(lambda x: validate_object_id(x), user['group']))}, "type": "class"})
+            doc = {
+                '_id': str(user["_id"]),
+                'Name': user["name"],
+                'ID': str(user["id"]),
+                'Group': group['name'],
+                'On Campus': None,
+                'Off campus': None,
+                'Social Practice': None
+            }
+            result.append(doc)
+            task['percentage'] = (idx + 1) / len(users) * 100
+            if idx % 20 == 19:
+                await db.zvms.tasks.update_one({"id": uuid.UUID(task_id)}, {"$set": {
+                    "percentage": task['percentage'],
+                }, "$push": {
+                    "result": {
+                        "$each": result
+                    }
+                }})
+                result = []
+                sleep(0.01)
+        await db.zvms.tasks.update_one({"id": uuid.UUID(task_id)}, {"$set": {
+            "percentage": 100,
+            "status": ExportStatus.completed,
+            "task_end": datetime.now(),
+        }, "$push": {
+            "result": {
+                "$each": result
+            }
+        }})
+    else:
+        await db.zvms.tasks.update_one({"id": uuid.UUID(task_id)}, {"$set": {
+            "status": ExportStatus.failed,
+            "task_end": datetime.now(),
+            "errmsg": "Invalid variant"
+        }})
+
+@router.post("/users")
+async def export_users(
+    background_tasks: BackgroundTasks,
+    user=Depends(get_current_user)
+):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail='Permission denied')
+    task_id = uuid.uuid4()
+    task = ExportTask(
+        id=task_id,
+        status=ExportStatus.pending,
+        format=ExportFormat.excel,
+        variant=ExportVariant.users,
+        export_start=None,
+        export_end=None,
+        task_start=datetime.now(),
+        task_end=None,
+        result=[]
+    )
+    document = task.model_dump()
+    document['variant'] = ExportVariant.users.value
+    document['format'] = document['format'].value
+    document['status'] = document['status'].value
+    await db.zvms.tasks.insert_one(document)
+    background_tasks.add_task(process_task, str(task_id))
+    return {
+        "code": 201,
+        "status": "ok",
+        "data": str(task_id)
+    }
+
 
 
 @router.post("/time")
@@ -138,11 +210,11 @@ async def get_export_file(task_id: str):
         raise HTTPException(status_code=400, detail="Task not completed")
     buffer = BytesIO()
     with tempfile.NamedTemporaryFile(suffix=f'.{ExportFormat(task['format']).suffix()}', delete=False) as tmp:
-        result = pd.DataFrame(task['result'])
+        result = pd.DataFrame(task['result']).sort_values('_id')
         if task['format'] == 'excel':
-            result.to_excel(tmp.name, index_label=False)
+            result.to_excel(tmp.name, index=False)
         elif task['format'] == 'csv':
-            result.to_csv(tmp.name, index_label=False)
+            result.to_csv(tmp.name, index=False)
         elif task['format'] == 'json':
             result.to_json(tmp.name)
         elif task['format'] == 'latex':

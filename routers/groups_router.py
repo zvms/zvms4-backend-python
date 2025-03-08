@@ -1,5 +1,10 @@
 import re
+import tempfile
+from io import BytesIO
 from typing import Optional
+import pandas as pd
+from fastapi.responses import FileResponse
+from typings.export import ExportFormat
 from typings.group import Group
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends
@@ -136,7 +141,7 @@ async def update_group_name(
     }
 
 
-@router.get("/{group_id}/activity")
+@router.get("/{group_id}/activities")
 async def get_class_activities(
     group_id: str,
     page: int = 1,
@@ -339,3 +344,60 @@ async def delete_group(group_id: str, user=Depends(compulsory_temporary_token)):
         "status": "ok",
         "code": 200,
     }
+
+
+@router.get("/{group_id}/template")
+async def get_group_template(
+    group_id: str,
+    export_format: ExportFormat,
+    user=Depends(get_current_user)
+):
+    same_class = False
+    if "secretary" in user["per"]:
+        target = await db.zvms.users.find_one({"_id": ObjectId(user["id"])})
+        if target is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        classid = target["group"]
+        if classid == group_id:
+            same_class = True
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if (
+        "admin" not in user["per"]
+        and not "auditor" in user["per"]
+        and not "department" in user["per"]
+        and (not "secretary" in user["per"] and not same_class)
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    db_users = await db.zvms.users.find({"group": group_id}).to_list(None)
+
+    group_name = (await db.zvms.groups.find_one({"_id": ObjectId(group_id)}))['name']
+
+    users = []
+
+    for user in db_users:
+        users.append({
+            '_id': str(user['_id']),
+            'ID': user['id'],
+            'Name': user['name'],
+            'Class': group_name,
+            'On Campus': None,
+            'Off Campus': None,
+            'Social Practice': None
+        })
+
+    table = pd.DataFrame(users).sort_values('ID')
+
+    buffer = BytesIO()
+    with tempfile.NamedTemporaryFile(suffix=f'.{export_format.suffix()}', delete=False) as tmp:
+        if export_format == ExportFormat.excel:
+            table.to_excel(tmp.name, index=False)
+        elif export_format == ExportFormat.csv:
+            table.to_csv(tmp.name, index=False)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+        tmp.seek(0)
+        buffer.write(tmp.read())
+
+    return FileResponse(tmp.name, media_type=export_format.mime())

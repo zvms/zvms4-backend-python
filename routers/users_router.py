@@ -308,7 +308,7 @@ async def remove_user_from_group(
     )
 
 
-@router.get("/{user_oid}/activity")
+@router.get("/{user_oid}/activities")
 async def read_user_activity(
     user_oid: str,
     user=Depends(get_current_user),

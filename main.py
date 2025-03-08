@@ -52,16 +52,16 @@ app.add_event_handler("startup", connect_to_mongo)
 app.add_event_handler("shutdown", close_mongo_connection)
 
 # Register routes
-app.include_router(users_router.router, prefix="/api/user", tags=["users"])
+app.include_router(users_router.router, prefix="/api/users", tags=["users"])
 app.include_router(
-    activities_router.router, prefix="/api/activity", tags=["activities"]
+    activities_router.router, prefix="/api/activities", tags=["activities"]
 )
 app.include_router(
-    notifications_router.router, prefix="/api/notification", tags=["notifications"]
+    notifications_router.router, prefix="/api/notifications", tags=["notifications"]
 )
-app.include_router(groups_router.router, prefix="/api/group", tags=["groups"])
-app.include_router(trophies_router.router, prefix="/api/trophy", tags=["trophies"])
-app.include_router(plugins_router.router, prefix='/api/plugin', tags=['plugins', 'calculator', 'dictionary'])
+app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
+app.include_router(trophies_router.router, prefix="/api/trophies", tags=["trophies"])
+app.include_router(plugins_router.router, prefix='/api/plugins', tags=['plugins', 'calculator', 'dictionary'])
 app.include_router(exports_router.router, prefix='/api/exports', tags=['exports'])
 app.include_router(imports_router.router, prefix='/api/imports', tags=['imports'])
 
@@ -86,22 +86,22 @@ async def home():
     }}
 
 
-# Custom exception handler for internal server errors
-@app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception):
-    return Response(
-        status_code=500,
-        content={"message": "An internal server error occurred"},
-    )
-
-
 # Optional: Handle validation errors specifically, if desired
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return Response(
-        status_code=422,
-        content={"message": "Validation error", "details": exc.errors()},
-    )
+# @app.exception_handler(RequestValidationError)
+# async def validation_exception_handler(request: Request, exc: RequestValidationError):
+#     return Response(
+#         status_code=422,
+#         content={"message": "Validation error", "details": exc.errors()},
+#     )
+
+
+# Custom exception handler for internal server errors
+# @app.exception_handler(Exception)
+# async def generic_exception_handler(request: Request, exc: Exception):
+#     return Response(
+#         status_code=500,
+#         content={"message": "An internal server error occurred"},
+#     )
 
 
 @app.get("/api/cert")
