@@ -1,5 +1,6 @@
 from fastapi import Request, Response, FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from routers import (
     notifications_router,
     users_router,
@@ -8,7 +9,8 @@ from routers import (
     trophies_router,
     plugins_router,
     exports_router,
-    imports_router
+    imports_router,
+    logs_router
 )
 from database import close_mongo_connection, connect_to_mongo
 import socketio
@@ -64,6 +66,7 @@ app.include_router(trophies_router.router, prefix="/api/trophies", tags=["trophi
 app.include_router(plugins_router.router, prefix='/api/plugins', tags=['plugins', 'calculator', 'dictionary'])
 app.include_router(exports_router.router, prefix='/api/exports', tags=['exports'])
 app.include_router(imports_router.router, prefix='/api/imports', tags=['imports'])
+app.include_router(logs_router.router, prefix='/api/logs', tags=['logs'])
 
 @app.router.get("/api/")
 async def home():
@@ -81,27 +84,10 @@ async def home():
             "trophy": "/api/trophy",
             "plugin": "/api/plugin",
             "exports": "/api/exports",
-            "imports": "/api/imports"
+            "imports": "/api/imports",
+            "logs": "/api/logs"
         }
     }}
-
-
-# Optional: Handle validation errors specifically, if desired
-# @app.exception_handler(RequestValidationError)
-# async def validation_exception_handler(request: Request, exc: RequestValidationError):
-#     return Response(
-#         status_code=422,
-#         content={"message": "Validation error", "details": exc.errors()},
-#     )
-
-
-# Custom exception handler for internal server errors
-# @app.exception_handler(Exception)
-# async def generic_exception_handler(request: Request, exc: Exception):
-#     return Response(
-#         status_code=500,
-#         content={"message": "An internal server error occurred"},
-#     )
 
 
 @app.get("/api/cert")
@@ -111,6 +97,28 @@ async def get_cert():
         "code": 200,
         "data": open("./rsa_public_key.pem", "r").read(),
     }
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Convert Pydantic errors to a readable string for frontend display."""
+    errors = exc.errors()
+    formatted_errors = []
+
+    for error in errors:
+        field = " → ".join(map(str, error["loc"]))  # Format location as "body → field"
+        message = error["msg"]
+        formatted_errors.append(f"{field}: {message}")
+
+    error_string = "\n".join(formatted_errors)  # Combine into a single string
+    return JSONResponse(content={"detail": error_string}, status_code=422)
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    """Catch-all exception handler to return a generic error message."""
+    return JSONResponse(
+        content={"detail": "An internal server error occurred."}, status_code=500
+    )
 
 
 @app.get("/api/version")

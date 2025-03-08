@@ -243,6 +243,7 @@ async def read_activities(
                     "date": True,
                     "type": True,
                     "special": True,
+                    "approver": True,
                     "members": {
                         "$filter": {
                             "input": "$members",

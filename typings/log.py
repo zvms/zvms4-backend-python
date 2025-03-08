@@ -15,7 +15,7 @@ class ZVMSLog:
     timestamp: float
     ip: str
 
-    def __init__(self, url: str, user: str, clarity: str, data: str, ip: str, timestamp: float):
+    def __init__(self, url: str = '', user: str = '', clarity: str = '', data: str = '', ip: str = '', timestamp: float = datetime.now().timestamp()):
         self.url = url
         self.user = user
         self.clarity = clarity
