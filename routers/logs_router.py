@@ -27,7 +27,7 @@ async def read_logs(
     pipeline = [
         {"$match": query},
         {"$sort": {"timestamp": -1}},
-        {"$skip": page * perpage},
+        {"$skip": 0 if page == -1 else (page - 1) * perpage},
         {"$limit": perpage},
     ]
 
