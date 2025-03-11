@@ -503,3 +503,28 @@ async def read_logs(
             "size": count,
         }
     }
+
+
+@router.delete("/{user_oid}/past/{past_identity}")
+def delete_past(user_oid: str, past_identity: str, user=Depends(get_current_user)):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail='Permission denied')
+    db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$pull": {"past": past_identity}})
+    return {
+        "code": 200,
+        "status": "ok"
+    }
+
+class PostPast(BaseModel):
+    past: str
+
+
+@router.post("/{user_oid}/past")
+async def add_past(user_oid: str, past: PostPast, user=Depends(get_current_user)):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail='Permission denied')
+    db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$push": {"past": past.past}})
+    return {
+        "code": 200,
+        "status": "ok"
+    }
