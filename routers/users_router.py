@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from bcrypt import hashpw, gensalt
@@ -38,8 +38,6 @@ async def auth_user(auth: AuthUser, request: Request, meta=Depends(binding_user_
     log = ZVMSLog(str(request.url), auth.id, meta['clarity_id'], f'''User {await get_user_name(id)} is logging in''',
                   meta['ip'], datetime.timestamp(datetime.now()))
 
-    await log.insert_log()
-
     if mode is None:
         mode = "long"
 
@@ -51,6 +49,8 @@ async def auth_user(auth: AuthUser, request: Request, meta=Depends(binding_user_
         id = str(users[0]["_id"])
 
     result = await validate_by_cert(id, credential, mode)
+
+    await log.insert_log()
 
     return {
         "token": result,
@@ -466,4 +466,40 @@ async def read_notifications(
         "metadata": {
             "size": count,
         },
+    }
+
+@router.get("/{user_oid}/logs")
+async def read_logs(
+    user_oid: str,
+    page: int = -1,
+    perpage: int = 10,
+    query: str = "",
+    user=Depends(get_current_user),
+):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail='Permission denied')
+
+    query: dict[str, Any] = {"user": user_oid} if query == "" else {"$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}], "user": user_oid}
+
+    count = await db.zvms.logs.count_documents(query)
+
+    pipeline = [
+        {"$match": query},
+        {"$sort": {"timestamp": -1}},
+        {"$skip": 0 if page == -1 else (page - 1) * perpage},
+        {"$limit": perpage},
+    ]
+
+    logs = await db.zvms.logs.aggregate(pipeline).to_list(None)
+
+    for log in logs:
+        log["_id"] = str(log["_id"])
+
+    return {
+        "code": 200,
+        "status": "ok",
+        "data": logs,
+        "metadata": {
+            "size": count,
+        }
     }

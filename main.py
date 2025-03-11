@@ -2,11 +2,9 @@ from fastapi import Request, Response, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from routers import (
-    notifications_router,
     users_router,
     activities_router,
     groups_router,
-    trophies_router,
     plugins_router,
     exports_router,
     imports_router,
@@ -58,11 +56,7 @@ app.include_router(users_router.router, prefix="/api/users", tags=["users"])
 app.include_router(
     activities_router.router, prefix="/api/activities", tags=["activities"]
 )
-app.include_router(
-    notifications_router.router, prefix="/api/notifications", tags=["notifications"]
-)
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
-app.include_router(trophies_router.router, prefix="/api/trophies", tags=["trophies"])
 app.include_router(plugins_router.router, prefix='/api/plugins', tags=['plugins', 'calculator', 'dictionary'])
 app.include_router(exports_router.router, prefix='/api/exports', tags=['exports'])
 app.include_router(imports_router.router, prefix='/api/imports', tags=['imports'])
