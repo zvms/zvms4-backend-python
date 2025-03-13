@@ -426,47 +426,7 @@ async def read_user_time(
 async def read_notifications(
     user_oid: str, page: int = 1, perpage: int = 10, user=Depends(get_current_user)
 ):
-    """
-    Get Notifications
-    """
-    # Get notification list
-    count = await db.zvms.notifications.count_documents(
-        {
-            "$or": [
-                {"receivers": str(user_oid)},
-                {"global": True},
-            ],
-        }
-    )
-    notifications = (
-        await db.zvms.notifications.find(
-            {
-                "$or": [
-                    {"receivers": str(user_oid)},
-                    {"global": True},
-                    {"publisher": str(user_oid)},
-                ],
-            }
-        )
-        .sort("_id", -1)
-        .skip(0 if page == -1 else (page - 1) * perpage)
-        .limit(0 if page == -1 else perpage)
-        .to_list(None if page == -1 else perpage)
-    )
-
-    if user_oid != user["id"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    for notification in notifications:
-        notification["_id"] = str(notification["_id"])
-    return {
-        "status": "ok",
-        "code": 200,
-        "data": notifications,
-        "metadata": {
-            "size": count,
-        },
-    }
+    raise HTTPException(status_code=410, detail="Gone")
 
 @router.get("/{user_oid}/logs")
 async def read_logs(
