@@ -93,7 +93,7 @@ async def create_user(
     }
 
 
-@router.delete("/{target}")
+@router.delete("/{target:path}")
 async def delete_user(
     target: str,
     user=Depends(compulsory_temporary_token),
