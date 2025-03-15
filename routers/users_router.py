@@ -507,15 +507,15 @@ async def read_logs(
 
 
 @router.delete("/{user_oid}/past/{past_identity_idx}")
-def delete_past(user_oid: str, past_identity_idx: str, user=Depends(get_current_user)):
+async def delete_past(user_oid: str, past_identity_idx: str, user=Depends(get_current_user)):
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail='Permission denied')
     # Remove by index
-    name = db.zvms.users.find_one({"_id": validate_object_id(user_oid)})["past"]
+    name = (await db.zvms.users.find_one({"_id": validate_object_id(user_oid)}))["past"]
     idx = int(past_identity_idx)
     if idx < 0 or idx >= len(name):
         raise HTTPException(status_code=404, detail='Past identity not found.')
-    db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$pull": {"past": name[idx]}})
+    await db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$pull": {"past": name[idx]}})
     return {
         "code": 200,
         "status": "ok"
@@ -531,7 +531,7 @@ async def add_past(user_oid: str, past: PostPast, user=Depends(get_current_user)
         raise HTTPException(status_code=400, detail='Invalid past identity.')
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail='Permission denied')
-    db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$push": {"past": past.past}})
+    await db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$push": {"past": past.past}})
     return {
         "code": 200,
         "status": "ok"
