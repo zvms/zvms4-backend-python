@@ -511,7 +511,11 @@ def delete_past(user_oid: str, past_identity_idx: str, user=Depends(get_current_
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail='Permission denied')
     # Remove by index
-    db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$unset": {"past." + past_identity_idx: ""}})
+    name = db.zvms.users.find_one({"_id": validate_object_id(user_oid)})["past"]
+    idx = int(past_identity_idx)
+    if idx < 0 or idx >= len(name):
+        raise HTTPException(status_code=404, detail='Past identity not found.')
+    db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$pull": {"past": name[idx]}})
     return {
         "code": 200,
         "status": "ok"
