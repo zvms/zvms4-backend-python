@@ -23,7 +23,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://v4.zvms.site", "https://v4-netlify.zvms.site/"],
+    allow_origins=["http://localhost:5173", "https://v4.zvms.site", "https://v4-netlify.zvms.site/", "https://deploy-preview-*--zvms.netlify.app/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,9 +71,9 @@ async def home():
         "license": "MIT",
         "source": "https://github.com/zvms/zvms4-backend-python.git",
         "apis": {
-            "user": "/api/user",
-            "activity": "/api/activity",
-            "group": "/api/group",
+            "user": "/api/users",
+            "activity": "/api/activities",
+            "group": "/api/groups",
             "exports": "/api/exports",
             "imports": "/api/imports",
             "logs": "/api/logs"
