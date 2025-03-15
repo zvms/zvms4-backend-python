@@ -17,6 +17,8 @@ from datetime import datetime
 from database import db
 from pydantic import BaseModel
 
+from util.validation import validate_activity_name
+
 router = APIRouter()
 
 
@@ -27,6 +29,9 @@ async def create_activity(payload: Activity, user=Depends(get_current_user), log
     """
 
     # remove _id
+
+    if not validate_activity_name(payload.name):
+        raise HTTPException(status_code=400, detail="Invalid activity name.")
 
     none_permission = len(user["per"]) == 1 and "student" in user["per"]
     only_secretary = (

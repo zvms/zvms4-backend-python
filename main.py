@@ -1,11 +1,12 @@
 from fastapi import Request, Response, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pymongo.errors import OperationFailure
+
 from routers import (
     users_router,
     activities_router,
     groups_router,
-    plugins_router,
     exports_router,
     imports_router,
     logs_router
@@ -57,7 +58,6 @@ app.include_router(
     activities_router.router, prefix="/api/activities", tags=["activities"]
 )
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
-app.include_router(plugins_router.router, prefix='/api/plugins', tags=['plugins', 'calculator', 'dictionary'])
 app.include_router(exports_router.router, prefix='/api/exports', tags=['exports'])
 app.include_router(imports_router.router, prefix='/api/imports', tags=['imports'])
 app.include_router(logs_router.router, prefix='/api/logs', tags=['logs'])
@@ -73,10 +73,7 @@ async def home():
         "apis": {
             "user": "/api/user",
             "activity": "/api/activity",
-            "notification": "/api/notification",
             "group": "/api/group",
-            "trophy": "/api/trophy",
-            "plugin": "/api/plugin",
             "exports": "/api/exports",
             "imports": "/api/imports",
             "logs": "/api/logs"
@@ -93,7 +90,7 @@ async def get_cert():
     }
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(_: Request, exc: RequestValidationError):
     """Convert Pydantic errors to a readable string for frontend display."""
     errors = exc.errors()
     formatted_errors = []
@@ -108,10 +105,17 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 @app.exception_handler(Exception)
-async def generic_exception_handler(request: Request, exc: Exception):
+async def generic_exception_handler():
     """Catch-all exception handler to return a generic error message."""
     return JSONResponse(
-        content={"detail": "An internal server error occurred."}, status_code=500
+        content={"detail": "An internal server error occurred"}, status_code=500
+    )
+
+@app.exception_handler(OperationFailure)
+async def operation_failure_exception_handler(_: Request, exc: OperationFailure):
+    """Catch-all exception handler to return a generic error message."""
+    return JSONResponse(
+        content={"detail": exc.details['errmsg']}, status_code=400
     )
 
 

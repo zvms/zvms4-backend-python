@@ -19,6 +19,7 @@ from util.object_id import (
 from database import db
 from util.cert import get_hashed_password_by_cert, validate_by_cert
 from util.user import get_user_name
+from util.validation import validate_past_identity
 
 router = APIRouter()
 
@@ -505,11 +506,12 @@ async def read_logs(
     }
 
 
-@router.delete("/{user_oid}/past/{past_identity}")
-def delete_past(user_oid: str, past_identity: str, user=Depends(get_current_user)):
+@router.delete("/{user_oid}/past/{past_identity_idx}")
+def delete_past(user_oid: str, past_identity_idx: str, user=Depends(get_current_user)):
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail='Permission denied')
-    db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$pull": {"past": past_identity}})
+    # Remove by index
+    db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$unset": {"past." + past_identity_idx: ""}})
     return {
         "code": 200,
         "status": "ok"
@@ -521,6 +523,8 @@ class PostPast(BaseModel):
 
 @router.post("/{user_oid}/past")
 async def add_past(user_oid: str, past: PostPast, user=Depends(get_current_user)):
+    if not validate_past_identity(past.past):
+        raise HTTPException(status_code=400, detail='Invalid past identity.')
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail='Permission denied')
     db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$push": {"past": past.past}})

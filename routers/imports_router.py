@@ -20,9 +20,11 @@ from datetime import datetime
 from database import db
 import pandas as pd
 
+from util.validation import validate_activity_name
 from utils import validate_object_id
 
 router = APIRouter()
+
 
 @router.post("/activities")
 async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File(...), user=Depends(get_current_user),
@@ -30,6 +32,13 @@ async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File
     """
     Upload activity excel
     """
+
+    if not validate_activity_name(name):
+        raise HTTPException(status_code=400, detail="Invalid activity name.")
+
+    if payload.content_type != 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' and \
+        payload.content_type != 'application/vnd.ms-excel':
+        raise HTTPException(status_code=400, detail="Invalid file format. You should upload an excel file")
 
     expected_columns = ['_id', 'ID', 'Name', 'Class', 'On Campus', 'Off Campus', 'Social Practice']
 
@@ -73,9 +82,10 @@ async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File
                 if row[mode] != 0.0 and not pd.isna(row[mode]):
                     user = await db.zvms.users.find_one({"_id": validate_object_id(row['_id'])})
                     if user is not None:
-                        template.members.append(ActivityMember(_id=row['_id'], id=row['_id'], status=MemberActivityStatus.effective,
-                                                               mode=ActivityMode(mode.replace(' ', '-').lower()),
-                                                               duration=row[mode]))
+                        template.members.append(
+                            ActivityMember(_id=row['_id'], id=row['_id'], status=MemberActivityStatus.effective,
+                                           mode=ActivityMode(mode.replace(' ', '-').lower()),
+                                           duration=row[mode]))
             if len(template.members) != 0:
                 await create_activity(template, user=user, log=log)
     except Exception as e:
