@@ -476,8 +476,8 @@ def delete_past(user_oid: str, past_identity: str, user=Depends(get_current_user
     }
 
 @router.delete("/{user_oid}/past")
-def delete_past_0(user_oid: str, user=Depends(get_current_user)):
-    return delete_past(user_oid, "", user)
+def delete_past_0(user_oid: str, data: str | None, user=Depends(get_current_user)):
+    return delete_past(user_oid, data if data is not None else "", user)
 
 
 class PostPast(BaseModel):
