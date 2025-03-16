@@ -465,6 +465,7 @@ async def read_logs(
     }
 
 
+#Remained for compatibility puropses: frontend will not be ready until next weekend
 @router.delete("/{user_oid}/past/{past_identity:path}")
 def delete_past(user_oid: str, past_identity: str, user=Depends(get_current_user)):
     if "admin" not in user["per"]:
