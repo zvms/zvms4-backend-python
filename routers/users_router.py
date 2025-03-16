@@ -102,13 +102,13 @@ async def delete_user(
     if target == user['id']:
         raise HTTPException(status_code=400, detail='You can\'t delete yourself.')
     validate_object_id(target)
-    log.with_text(f'''User {await get_user_name(target)} ({target}) is deleted by {await get_user_name(user['id'])}''')
-    await log.insert_log()
     # Remove all activity records of the user
     metadata = await read_user_activity(target, page=-1, user=user, query='', perpage=1000)
     for activity in metadata['data']:
         await user_activity_signoff(str(activity['_id']), uid=target, user=user, log=log)
     await db.zvms.users.delete_one({"_id": validate_object_id(target)})
+    log.with_text(f'''User {await get_user_name(target)} ({target}) is deleted by {await get_user_name(user['id'])}''')
+    await log.insert_log()
     return {
         "status": "ok",
         "code": 200
@@ -429,7 +429,6 @@ async def read_user_time(
             "onCampus": result["on-campus"],
             "offCampus": result["off-campus"],
             "socialPractice": result["social-practice"],
-            "trophy": result["trophy"],
             "total": result["total"],
         },
     }
