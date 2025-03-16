@@ -30,8 +30,10 @@ async def create_activity(payload: Activity, user=Depends(get_current_user), log
 
     # remove _id
 
-    if not validate_activity_name(payload.name):
-        raise HTTPException(status_code=400, detail="Invalid activity name.")
+    if not validate_activity_name(payload.name)[0]:
+        raise HTTPException(status_code=400, detail=validate_activity_name(payload.name)[1])
+
+    print(user)
 
     none_permission = len(user["per"]) == 1 and "student" in user["per"]
     only_secretary = (
@@ -139,10 +141,16 @@ async def change_activity_title(
     """
     Modify Activity Title
     """
+    if not validate_activity_name(payload.name)[0]:
+        raise HTTPException(status_code=400, detail=validate_activity_name(payload.name)[1])
+
     name = payload.name
     # Check permission
     if user["id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
+
+    log.with_text(f"User {await get_user_name(user['id'])} changed activity title to {name}")
+    await log.insert_log()
 
     # Edit activity title
     await db.zvms.activities.update_one(

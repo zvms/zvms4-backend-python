@@ -19,7 +19,7 @@ from util.object_id import (
 from database import db
 from util.cert import get_hashed_password_by_cert, validate_by_cert
 from util.user import get_user_name
-from util.validation import validate_past_identity
+from util.validation import validate_past_identity, validate_number, validate_student_name
 
 router = APIRouter()
 
@@ -65,9 +65,6 @@ async def create_user(
     actioner=Depends(compulsory_temporary_token),
     log=Depends(inject_log)
 ):
-    log.with_text(f'''User {target_user.name} is created by {await get_user_name(actioner['id'])}''')
-    await log.insert_log()
-
     # Check user's permission
     if "admin" not in actioner["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
@@ -77,6 +74,15 @@ async def create_user(
     id = str(document['id'])
     document['id'] = id
     document['password'] = hashpw(id.encode('utf-8'), gensalt()).decode('utf-8')
+
+
+    if not validate_number(document['id'])[0]:
+        raise HTTPException(status_code=400, detail=validate_number(document['id'])[1])
+    if not validate_student_name(document['name'])[0]:
+        raise HTTPException(status_code=400, detail=validate_student_name(document['name'])[1])
+
+    log.with_text(f'''User {target_user.name} is created by {await get_user_name(actioner['id'])}''')
+    await log.insert_log()
 
     result = await db.zvms.users.insert_one(document)
 
@@ -243,13 +249,16 @@ async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulso
     """
     Update user's information
     """
-    log.with_text(f'''User {await get_user_name(user_oid)}'s data is updated to {user_struct.model_dump()}''')
-
     # Check user's permission
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     user_info = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
+
+    if not validate_number(user_struct.id)[0]:
+        raise HTTPException(status_code=400, detail=validate_number(user_struct.id)[1])
+    if not validate_student_name(user_struct.name)[0]:
+        raise HTTPException(status_code=400, detail=validate_student_name(user_struct.name)[1])
 
     pasts = []
 
@@ -274,6 +283,9 @@ async def update_user(user_oid: str, user_struct: PutUser, user=Depends(compulso
             }
         },
     )
+
+    log.with_text(f'''User {await get_user_name(user_oid)}'s data is updated to {user_struct.model_dump()}''')
+    await log.insert_log()
 
     return {
         "status": "ok",
@@ -507,15 +519,17 @@ async def read_logs(
 
 
 @router.delete("/{user_oid}/past/{past_identity_idx}")
-async def delete_past(user_oid: str, past_identity_idx: str, user=Depends(get_current_user)):
+async def delete_past(user_oid: str, past_identity_idx: str, user=Depends(get_current_user), log=Depends(inject_log)):
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail='Permission denied')
     # Remove by index
     name = (await db.zvms.users.find_one({"_id": validate_object_id(user_oid)}))["past"]
     idx = int(past_identity_idx)
+    log.with_text(f'''User {await get_user_name(user_oid)}'s past identity is deleted, {name[idx]}''')
     if idx < 0 or idx >= len(name):
         raise HTTPException(status_code=404, detail='Past identity not found.')
     await db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$pull": {"past": name[idx]}})
+    await log.insert_log()
     return {
         "code": 200,
         "status": "ok"
@@ -526,12 +540,16 @@ class PostPast(BaseModel):
 
 
 @router.post("/{user_oid}/past")
-async def add_past(user_oid: str, past: PostPast, user=Depends(get_current_user)):
-    if not validate_past_identity(past.past):
+async def add_past(user_oid: str, past: PostPast, user=Depends(get_current_user), log=Depends(inject_log)):
+    log.with_text(f'''User {await get_user_name(user_oid)}'s past identity is added, {past.past}''')
+    if not validate_past_identity(past.past)[0]:
         raise HTTPException(status_code=400, detail='Invalid past identity.')
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail='Permission denied')
+    if (await db.zvms.users.count_documents({'$or': [{"id": past.past}, {"past": {"$elemMatch": {"$eq": past.past}}}]})) > 0:
+        raise HTTPException(status_code=409, detail='The past identity already exists.')
     await db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$push": {"past": past.past}})
+    await log.insert_log()
     return {
         "code": 200,
         "status": "ok"

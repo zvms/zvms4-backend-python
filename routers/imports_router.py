@@ -77,11 +77,11 @@ async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File
 
         for mode in accepted_modes:
             template = copy.deepcopy(info)
-            template.name += ' | Mode: ' + mode
+            template.name += '\u2014' + mode
             for idx, row in df.iterrows():
                 if row[mode] != 0.0 and not pd.isna(row[mode]):
-                    user = await db.zvms.users.find_one({"_id": validate_object_id(row['_id'])})
-                    if user is not None:
+                    users = await db.zvms.users.find_one({"_id": validate_object_id(row['_id'])})
+                    if users is not None:
                         template.members.append(
                             ActivityMember(_id=row['_id'], id=row['_id'], status=MemberActivityStatus.effective,
                                            mode=ActivityMode(mode.replace(' ', '-').lower()),

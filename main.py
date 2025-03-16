@@ -118,7 +118,6 @@ async def operation_failure_exception_handler(_: Request, exc: OperationFailure)
         content={"detail": exc.details['errmsg']}, status_code=400
     )
 
-
 @app.get("/api/version")
 async def get_version():
     return {"status": "ok", "code": 200, "data": "0.1.0-alpha.1"}

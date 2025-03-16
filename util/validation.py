@@ -4,31 +4,31 @@ from datetime import datetime
 def validate_activity_name(name: str):
     """
     Validate activity name.
-    1. Should be only appear in CJK, Latin Characters, numbers, spaces, slashes, and dots.
+    1. Should be only appear in CJK, Latin Characters, numbers, spaces, slashes, dashes, and dots.
     2. ASCII letters should be wrapped with spaces if inserted between CJK characters.
     3. Should not be empty.
     4. Should not have space before or after the string.
     5. Should not have CJK punctuation.
     """
-    if not name:
-        return False
+    if not name.strip():
+        return False, 'Should not be empty'
 
     if name[0] == ' ' or name[-1] == ' ':
-        return False
+        return False, 'Should not have space before or after the string'
 
     # Should only contain CJK, Latin Characters, numbers, spaces, slashes, and dots
-    if not re.match(r'^[a-zA-Z0-9\u4e00-\u9fff\uac00-\ud7a3\s\/\.]+$', name):
-        return False
+    if not re.match(r'^[\u4e00-\u9fff\uac00-\ud7a3\u2013-\u2014a-zA-Z0-9 /-/.]+$', name):
+        return False, 'Should only appear in CJK, Latin Characters, numbers, spaces, slashes, dashes (including en dash and em dash), and dots'
 
     # ASCII letters should be wrapped with spaces if inserted between CJK characters
     if re.search(r'[\u4e00-\u9fff\uac00-\ud7a3][a-zA-Z0-9]', name) or re.search(r'[a-zA-Z0-9][\u4e00-\u9fff]', name):
-        return False
+        return False, 'ASCII letters should be wrapped with spaces if inserted between CJK characters'
 
     # Should not have CJK punctuation
     if re.search(r'[\u3000-\u303F\uFF00-\uFFEF]', name):
-        return False
+        return False, 'Should not have CJK punctuation'
 
-    return True
+    return True, ''
 
 def validate_student_name(name: str):
     """
@@ -37,8 +37,8 @@ def validate_student_name(name: str):
     2. If the name is CJK name, it should be in the correct format.
     3. Should not be empty.
     """
-    if not name:
-        return False
+    if not name.strip():
+        return False, 'Should not be empty'
 
     # If the name is in Latin characters, it should be capitalized, and separated by space.
     latin = re.match(r'^[A-Z][a-z]+ [A-Z][a-z]+$', name)
@@ -48,7 +48,13 @@ def validate_student_name(name: str):
     cjk = re.match(r'^[\u4e00-\u9fff\uac00-\ud7a3]{2,5}$', name)
 
     # XOR logic
-    return bool(latin) != bool(cjk)
+    if latin and cjk:
+        return False, 'Should be either Latin or CJK name'
+
+    if not latin and not cjk:
+        return False, 'Should be either Latin or CJK name'
+
+    return True, ''
 
 
 def validate_number(number: str):
@@ -75,15 +81,15 @@ def validate_number(number: str):
         eoy = datetime.now().year
 
     if year < soy or year > eoy:
-        return False
+        return False, 'The first four digits reflects the year of registration, which should be in the range grade 1–3, separating school year by Aug 1st'
 
     if class_id < 1 or class_id > 30:
-        return False
+        return False, 'Then the two digits indicates the class ID, no more than 30'
 
     if student_id < 1 or student_id > 80:
-        return False
+        return False, 'The last two digits indicates the student ID, no more than 80'
 
-    return True
+    return True, ''
 
 def validate_past_identity(identity: str):
     """
@@ -93,10 +99,13 @@ def validate_past_identity(identity: str):
     3. If the identity is number, it should be in the correct format.
     """
 
-    if validate_student_name(identity):
-        return True
+    name, namemsg = validate_student_name(identity)
 
-    if validate_number(identity):
-        return True
+    number, numbermsg = validate_number(identity)
 
-    return False
+    if name == True and number == True:
+        return False, 'Should be either name or number'
+    elif name == True or number == True:
+        return True, ''
+    else:
+        return False, namemsg + ';\n' + numbermsg
