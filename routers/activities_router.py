@@ -443,15 +443,16 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
     return {"status": "ok", "code": 200, "data": activity}
 
 
+class PutActivityDuration(BaseModel):
+    duration: str
+
+
 @router.put('/{activity_oid}/member/{uid}/duration')
-async def update_activity_member_duration(activity_oid: str, uid: str, duration: float, user=Depends(get_current_user),
+async def update_activity_member_duration(activity_oid: str, uid: str, payload: PutActivityDuration, user=Depends(get_current_user),
                                           log=Depends(inject_log)):
     """
     Update activity member duration
     """
-    log.with_text(
-        f"User {await get_user_name(user['id'])} updated activity member {await get_user_name(uid)}'s duration to {duration} in activity {activity_oid}")
-    await log.insert_log()
 
     activity = await db.zvms.activities.find_one(
         {"_id": validate_object_id(activity_oid)}
@@ -477,7 +478,7 @@ async def update_activity_member_duration(activity_oid: str, uid: str, duration:
                         "in": {
                             "$cond": [
                                 {"$eq": ["$$member._id", uid]},
-                                {"$mergeObjects": ["$$member", {"duration": duration}]},
+                                {"$mergeObjects": ["$$member", {"duration": payload.duration}]},
                                 "$$member"
                             ]
                         }
@@ -491,6 +492,10 @@ async def update_activity_member_duration(activity_oid: str, uid: str, duration:
         {"_id": validate_object_id(activity_oid)},
         pipeline
     )
+
+    log.with_text(
+        f"User {await get_user_name(user['id'])} updated activity member {await get_user_name(uid)}'s duration to {duration} in activity {activity_oid}")
+    await log.insert_log()
 
     return {
         "status": "ok",
