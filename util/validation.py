@@ -67,7 +67,7 @@ def validate_number(number: str):
     5. Should not duplicate with existing student number.
     """
     if not re.match(r'^\d{8}$', number):
-        return False
+        return False, 'Should be eight digits'
 
     year = int(number[:4])
     class_id = int(number[4:6])
