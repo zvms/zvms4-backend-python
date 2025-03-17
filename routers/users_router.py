@@ -441,4 +441,69 @@ async def read_logs(
     query: str = "",
     user=Depends(get_current_user),
 ):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail='Permission denied')
+
+    query: dict[str, Any] = {"user": user_oid} if query == "" else {"$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}], "user": user_oid}
+
+    count = await db.zvms.logs.count_documents(query)
+
+    pipeline = [
+        {"$match": query},
+        {"$sort": {"timestamp": -1}},
+        {"$skip": 0 if page == -1 else (page - 1) * perpage},
+        {"$limit": perpage},
+    ]
+
+    logs = await db.zvms.logs.aggregate(pipeline).to_list(None)
+
+    for log in logs:
+        log["_id"] = str(log["_id"])
+
+    return {
+        "code": 200,
+        "status": "ok",
+        "data": logs,
+        "metadata": {
+            "size": count,
+        }
+    }
+
+
+@router.delete("/{user_oid}/past/{past_identity_idx}")
+async def delete_past(user_oid: str, past_identity_idx: str, user=Depends(get_current_user), log=Depends(inject_log)):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail='Permission denied')
+    # Remove by index
+    name = (await db.zvms.users.find_one({"_id": validate_object_id(user_oid)}))["past"]
+    idx = int(past_identity_idx)
+    log.with_text(f'''User {await get_user_name(user_oid)}'s past identity is deleted, {name[idx]}''')
+    if idx < 0 or idx >= len(name):
+        raise HTTPException(status_code=404, detail='Past identity not found.')
+    await db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$pull": {"past": name[idx]}})
+    await log.insert_log()
+    return {
+        "code": 200,
+        "status": "ok"
+    }
+
+class PostPast(BaseModel):
+    past: str
+
+
+@router.post("/{user_oid}/past")
+async def add_past(user_oid: str, past: PostPast, user=Depends(get_current_user), log=Depends(inject_log)):
+    log.with_text(f'''User {await get_user_name(user_oid)}'s past identity is added, {past.past}''')
+    if not validate_past_identity(past.past)[0]:
+        raise HTTPException(status_code=400, detail='Invalid past identity.')
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail='Permission denied')
+    if (await db.zvms.users.count_documents({'$or': [{"id": past.past}, {"past": {"$elemMatch": {"$eq": past.past}}}]})) > 0:
+        raise HTTPException(status_code=409, detail='The past identity already exists.')
+    await db.zvms.users.update_one({"_id": validate_object_id(user_oid)}, {"$push": {"past": past.past}})
+    await log.insert_log()
+    return {
+        "code": 200,
+        "status": "ok"
+    }
     
