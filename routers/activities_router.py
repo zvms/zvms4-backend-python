@@ -495,7 +495,7 @@ async def update_activity_member_duration(activity_oid: str, uid: str, payload: 
     )
 
     log.with_text(
-        f"User {await get_user_name(user['id'])} updated activity member {await get_user_name(uid)}'s duration to {duration} in activity {activity_oid}")
+        f"User {await get_user_name(user['id'])} updated activity member {await get_user_name(uid)}'s duration to {payload.duration} in activity {activity_oid}")
     await log.insert_log()
 
     return {
