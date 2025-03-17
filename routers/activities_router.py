@@ -105,8 +105,6 @@ async def change_activity_description(
     """
     Edit activity description
     """
-    log = log.with_text(f"User {await get_user_name(user['id'])} changed activity description to {payload.description}")
-    await log.insert_log()
 
     description = payload.description
     # Check permission
@@ -123,6 +121,9 @@ async def change_activity_description(
             }
         },
     )
+    
+    log = log.with_text(f"User {await get_user_name(user['id'])} changed activity description to {payload.description}")
+    await log.insert_log()
 
     return {
         "status": "ok",
@@ -149,14 +150,14 @@ async def change_activity_title(
     if user["id"] != validate_object_id(activity_oid) and "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    log.with_text(f"User {await get_user_name(user['id'])} changed activity title to {name}")
-    await log.insert_log()
-
     # Edit activity title
     await db.zvms.activities.update_one(
         {"_id": validate_object_id(activity_oid)},
         {"$set": {"name": name, "updatedAt": int(datetime.now().timestamp())}},
     )
+    
+    log.with_text(f"User {await get_user_name(user['id'])} changed activity title to {name}")
+    await log.insert_log()
 
     return {
         "status": "ok",
@@ -175,9 +176,6 @@ async def change_activity_status(
     """
     Modify activity status
     """
-
-    log.with_text(f"User {await get_user_name(user['id'])} changed activity status to {payload.status}")
-    await log.insert_log()
 
     status = payload.status
 
@@ -202,6 +200,9 @@ async def change_activity_status(
         {"_id": validate_object_id(activity_oid)},
         {"$set": {"status": status, "updatedAt": int(datetime.now().timestamp())}},
     )
+    
+    log.with_text(f"User {await get_user_name(user['id'])} changed activity status to {payload.status}")
+    await log.insert_log()
 
     return {
         "status": "ok",
@@ -598,10 +599,6 @@ async def user_activity_signoff(
         {"_id": validate_object_id(activity_oid)}
     )
 
-    log.with_text(
-        f"User {await get_user_name(user['id'])} removed user {await get_user_name(uid)} from activity {activity_oid} ({activity['name']})")
-    await log.insert_log()
-
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
@@ -624,6 +621,10 @@ async def user_activity_signoff(
         {"_id": validate_object_id(activity_oid)},
         {"$pull": {"members": {"_id": uid}}},
     )
+    
+    log.with_text(
+        f"User {await get_user_name(user['id'])} removed user {await get_user_name(uid)} from activity {activity_oid} ({activity['name']})")
+    await log.insert_log()
 
     return {
         "status": "ok",
