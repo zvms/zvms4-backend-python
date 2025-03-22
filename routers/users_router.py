@@ -102,13 +102,13 @@ async def delete_user(
     if target == user['id']:
         raise HTTPException(status_code=400, detail='You can\'t delete yourself.')
     validate_object_id(target)
-    log.with_text(f'''User {await get_user_name(target)} ({target}) is deleted by {await get_user_name(user['id'])}''')
-    await log.insert_log()
     # Remove all activity records of the user
     metadata = await read_user_activity(target, page=-1, user=user, query='', perpage=1000)
     for activity in metadata['data']:
         await user_activity_signoff(str(activity['_id']), uid=target, user=user, log=log)
     await db.zvms.users.delete_one({"_id": validate_object_id(target)})
+    log.with_text(f'''User {await get_user_name(target)} ({target}) is deleted by {await get_user_name(user['id'])}''')
+    await log.insert_log()
     return {
         "status": "ok",
         "code": 200
@@ -429,55 +429,7 @@ async def read_user_time(
             "onCampus": result["on-campus"],
             "offCampus": result["off-campus"],
             "socialPractice": result["social-practice"],
-            "trophy": result["trophy"],
             "total": result["total"],
-        },
-    }
-
-
-@router.get("/{user_oid}/notification")
-async def read_notifications(
-    user_oid: str, page: int = 1, perpage: int = 10, user=Depends(get_current_user)
-):
-    """
-    Get Notifications
-    """
-    # Get notification list
-    count = await db.zvms.notifications.count_documents(
-        {
-            "$or": [
-                {"receivers": str(user_oid)},
-                {"global": True},
-            ],
-        }
-    )
-    notifications = (
-        await db.zvms.notifications.find(
-            {
-                "$or": [
-                    {"receivers": str(user_oid)},
-                    {"global": True},
-                    {"publisher": str(user_oid)},
-                ],
-            }
-        )
-        .sort("_id", -1)
-        .skip(0 if page == -1 else (page - 1) * perpage)
-        .limit(0 if page == -1 else perpage)
-        .to_list(None if page == -1 else perpage)
-    )
-
-    if user_oid != user["id"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    for notification in notifications:
-        notification["_id"] = str(notification["_id"])
-    return {
-        "status": "ok",
-        "code": 200,
-        "data": notifications,
-        "metadata": {
-            "size": count,
         },
     }
 
@@ -554,3 +506,4 @@ async def add_past(user_oid: str, past: PostPast, user=Depends(get_current_user)
         "code": 200,
         "status": "ok"
     }
+    
