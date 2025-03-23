@@ -494,7 +494,7 @@ class PostPast(BaseModel):
 @router.post("/{user_oid}/past")
 async def add_past(user_oid: str, past: PostPast, user=Depends(get_current_user), log=Depends(inject_log)):
     log.with_text(f'''User {await get_user_name(user_oid)}'s past identity is added, {past.past}''')
-    if not validate_past_identity(past.past)[0]:
+    if not validate_number(past.past)[0]:
         raise HTTPException(status_code=400, detail='Invalid past identity.')
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail='Permission denied')
