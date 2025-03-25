@@ -17,7 +17,7 @@ def validate_activity_name(name: str):
         return False, 'Should not have space before or after the string'
 
     # Should only contain CJK, Latin Characters, numbers, spaces, slashes, and dots
-    if not re.match(r'^[\u4e00-\u9fff\uac00-\ud7a3\u2013-\u2014a-zA-Z0-9 /-/.]+$', name):
+    if not re.match(r'^[-\u4e00-\u9fff\uac00-\ud7a3\u2013-\u2014a-zA-Z0-9 /-/.]+$', name):
         return False, 'Should only appear in CJK, Latin Characters, numbers, spaces, slashes, dashes (including en dash and em dash), and dots'
 
     # ASCII letters should be wrapped with spaces if inserted between CJK characters
