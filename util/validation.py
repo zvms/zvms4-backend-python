@@ -4,11 +4,10 @@ from datetime import datetime
 def validate_activity_name(name: str):
     """
     Validate activity name.
-    1. Should be only appear in CJK, Latin Characters, numbers, spaces, slashes, dashes, and dots.
-    2. ASCII letters should be wrapped with spaces if inserted between CJK characters.
+    1. Should be only appear in Chinese, Latin Characters, numbers, spaces, slashes, dashes, and dots.
+    2. ASCII letters should be wrapped with spaces if inserted between Chinese characters.
     3. Should not be empty.
     4. Should not have space before or after the string.
-    5. Should not have CJK punctuation.
     """
     if not name.strip():
         return False, 'Should not be empty'
@@ -16,17 +15,13 @@ def validate_activity_name(name: str):
     if name[0] == ' ' or name[-1] == ' ':
         return False, 'Should not have space before or after the string'
 
-    # Should only contain CJK, Latin Characters, numbers, spaces, slashes, and dots
-    if not re.match(r'^[-\u4e00-\u9fff\uac00-\ud7a3\u2013-\u2014a-zA-Z0-9 /-/.]+$', name):
-        return False, 'Should only appear in CJK, Latin Characters, numbers, spaces, slashes, dashes (including en dash and em dash), and dots'
+    # Should only contain Chinese, Latin Characters, numbers, spaces, slashes, and dots
+    if not re.match(r'^[-\u4e00-\u9fa5\u2013-\u2014a-zA-Z0-9 /-/.]+$', name):
+        return False, 'Should only appear in Chinese, Latin Characters, numbers, spaces, slashes, dashes (including en dash and em dash), and dots'
 
-    # ASCII letters should be wrapped with spaces if inserted between CJK characters
-    if re.search(r'[\u4e00-\u9fff\uac00-\ud7a3][a-zA-Z0-9]', name) or re.search(r'[a-zA-Z0-9][\u4e00-\u9fff]', name):
-        return False, 'ASCII letters should be wrapped with spaces if inserted between CJK characters'
-
-    # Should not have CJK punctuation
-    if re.search(r'[\u3000-\u303F\uFF00-\uFFEF]', name):
-        return False, 'Should not have CJK punctuation'
+    # ASCII letters should be wrapped with spaces if inserted between Chinese characters
+    if re.search(r'[\u4e00-\u9fa5][a-zA-Z0-9]', name) or re.search(r'[a-zA-Z0-9][\u4e00-\u9fa5]', name):
+        return False, 'ASCII letters should be wrapped with spaces if inserted between Chinese characters'
 
     return True, ''
 
@@ -40,19 +35,14 @@ def validate_student_name(name: str):
     if not name.strip():
         return False, 'Should not be empty'
 
-    # If the name is in Latin characters, it should be capitalized, and separated by space.
-    latin = re.match(r'^[A-Z][a-z]+ [A-Z][a-z]+$', name)
+    if name[0] == ' ' or name[-1] == ' ':
+        return False, 'Should not have space before or after the string'
 
+    # If the name is Chinese name, it should be in the correct format, at most 5 characters and at least 2 characters.
+    cjk = re.match(r'^[\u4e00-\u9fa5]{2,5}$', name)
 
-    # If the name is CJK name, it should be in the correct format, at most 5 characters and at least 2 characters.
-    cjk = re.match(r'^[\u4e00-\u9fff\uac00-\ud7a3]{2,5}$', name)
-
-    # XOR logic
-    if latin and cjk:
-        return False, 'Should be either Latin or CJK name'
-
-    if not latin and not cjk:
-        return False, 'Should be either Latin or CJK name'
+    if not cjk:
+        return False, 'Should be Chinese name'
 
     return True, ''
 
@@ -83,11 +73,11 @@ def validate_number(number: str):
     if year < soy or year > eoy:
         return False, 'The first four digits reflects the year of registration, which should be in the range grade 1–3, separating school year by Aug 1st'
 
-    if class_id < 1 or class_id > 30:
-        return False, 'Then the two digits indicates the class ID, no more than 30'
+    if class_id < 1 or class_id > 25:
+        return False, 'Then the two digits indicates the class ID, no more than 25'
 
-    if student_id < 1 or student_id > 80:
-        return False, 'The last two digits indicates the student ID, no more than 80'
+    if student_id < 1 or student_id > 60:
+        return False, 'The last two digits indicates the student ID, no more than 60'
 
     return True, ''
 
@@ -99,13 +89,8 @@ def validate_past_identity(identity: str):
     3. If the identity is number, it should be in the correct format.
     """
 
-    name, namemsg = validate_student_name(identity)
-
     number, numbermsg = validate_number(identity)
-
-    if name == True and number == True:
-        return False, 'Should be either name or number'
-    elif name == True or number == True:
+    if number == True:
         return True, ''
     else:
-        return False, namemsg + ';\n' + numbermsg
+        return False, numbermsg
