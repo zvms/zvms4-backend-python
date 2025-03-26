@@ -445,7 +445,7 @@ async def read_activity(activity_oid: str, user=Depends(get_current_user)):
 
 
 class PutActivityDuration(BaseModel):
-    duration: int
+    duration: float
 
 
 @router.put('/{activity_oid}/member/{uid}/duration')
