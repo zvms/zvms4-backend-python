@@ -463,7 +463,6 @@ async def update_activity_member_duration(activity_oid: str, uid: str, payload: 
         raise HTTPException(status_code=404, detail="Activity not found")
 
     if (
-        user["id"] != activity["creator"]
         and "admin" not in user["per"]
         and "department" not in user["per"]
     ):
