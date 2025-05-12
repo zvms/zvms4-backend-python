@@ -27,12 +27,14 @@ def validate_object_id(id: str):
         raise HTTPException(status_code=400, detail="Invalid Object ID")
     return _id
 
+
 def string_to_option_object_id(id: str):
-    try :
+    try:
         _id = ObjectId(id)
     except:
         return None
     return _id
+
 
 async def get_user(oid: str):
     """
@@ -46,19 +48,25 @@ async def get_user(oid: str):
 
 
 async def compulsory_temporary_token(token: str = Depends(oauth2_scheme)):
-    result = await get_current_user(token, 'short', True)
+    result = await get_current_user(token, "short", True)
     return result
 
+
 async def optional_current_user(token: str = Depends(oauth2_scheme)):
-    result = await get_current_user(token, 'long', False)
+    result = await get_current_user(token, "long", False)
     print(result)
     return result
 
 
-async def get_current_user(token: Optional[str] = Depends(oauth2_scheme), scope: Optional[str] = 'long', exception: bool = True):
+async def get_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    scope: Optional[str] = "long",
+    exception: bool = True,
+):
     """
     Inject `Depends`, returning user info
     """
+
     def raise_exception():
         if exception:
             raise HTTPException(
@@ -85,7 +93,7 @@ async def get_current_user(token: Optional[str] = Depends(oauth2_scheme), scope:
         # Check if the token is expired
         if exp is not None and datetime.utcnow() >= datetime.fromtimestamp(exp):
             raise_exception()
-        if scope == 'short' and payload['scope'] == 'access_token':
+        if scope == "short" and payload["scope"] == "access_token":
             raise_exception()
         user = {
             "id": oid,
@@ -99,6 +107,7 @@ async def get_current_user(token: Optional[str] = Depends(oauth2_scheme), scope:
     except jwt.PyJWTError:
         raise_exception()
 
+
 def timestamp_change(date_string: str):
     """
     Change ISO-8601 to timestamp
@@ -111,21 +120,28 @@ def timestamp_change(date_string: str):
     # Return the timestamp
     return int(timestamp)
 
+
 def get_img_token_url(user_oid: str, per: str):
     url = urlparse(settings.IMGBED_SERVER)
-    url._replace(path='/user/getToken')
-    query = urlencode({
-        "superAdminToken": settings.IMGBED_SECRET_KEY,
-        "userId": user_oid,
-        "permission": per
-    })
+    url._replace(path="/user/getToken")
+    query = urlencode(
+        {
+            "superAdminToken": settings.IMGBED_SECRET_KEY,
+            "userId": user_oid,
+            "permission": per,
+        }
+    )
     url._replace(query=query)
     return url.geturl()
+
 
 def get_img_token(user_oid, per):
     url = get_img_token_url(user_oid, per)
     res = requests.get(url)
-    return res.json()['token']
+    return res.json()["token"]
+
 
 def randomString(length=16):
-    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(length))
+    return "".join(
+        random.choice(string.ascii_letters + string.digits) for _ in range(length)
+    )

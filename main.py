@@ -1,6 +1,6 @@
 from fastapi import Request, Response, FastAPI
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pymongo.errors import OperationFailure
 
 from routers import (
@@ -9,7 +9,7 @@ from routers import (
     groups_router,
     exports_router,
     imports_router,
-    logs_router
+    logs_router,
 )
 from database import close_mongo_connection, connect_to_mongo
 import socketio
@@ -23,13 +23,19 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://v4.zvms.site", "https://v4-netlify.zvms.site", "https://deploy-preview-64--zvms.netlify.app"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://v4.zvms.site",
+        "https://v4-netlify.zvms.site",
+        "https://deploy-preview-64--zvms.netlify.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.mount("/socket.io", socket)
+
 
 @sio.event
 async def connect(sid, environ):
@@ -44,7 +50,7 @@ async def disconnect(sid):
 async def mark_all_tasks_failed():
     await db.zvms.tasks.update_many(
         {"status": {"$ne": "completed"}},
-        {"$set": {"status": "failed", "errmsg": "Program interrupted unexpectedly"}}
+        {"$set": {"status": "failed", "errmsg": "Program interrupted unexpectedly"}},
     )
 
 
@@ -58,27 +64,80 @@ app.include_router(
     activities_router.router, prefix="/api/activities", tags=["activities"]
 )
 app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
-app.include_router(exports_router.router, prefix='/api/exports', tags=['exports'])
-app.include_router(imports_router.router, prefix='/api/imports', tags=['imports'])
-app.include_router(logs_router.router, prefix='/api/logs', tags=['logs'])
+app.include_router(exports_router.router, prefix="/api/exports", tags=["exports"])
+app.include_router(imports_router.router, prefix="/api/imports", tags=["imports"])
+app.include_router(logs_router.router, prefix="/api/logs", tags=["logs"])
+
 
 @app.router.get("/api/")
 async def home():
-    return {"status": "ok", "code": 200, "data": {
-        "message": "Welcome to ZVMS API",
-        "version": "0.1.0-alpha.1",
-        "author": "ZZDev",
-        "license": "MIT",
-        "source": "https://github.com/zvms/zvms4-backend-python.git",
-        "apis": {
-            "user": "/api/users",
-            "activity": "/api/activities",
-            "group": "/api/groups",
-            "exports": "/api/exports",
-            "imports": "/api/imports",
-            "logs": "/api/logs"
-        }
-    }}
+    return {
+        "status": "ok",
+        "code": 200,
+        "data": {
+            "message": "Welcome to ZVMS API",
+            "version": "0.1.0-alpha.1",
+            "author": "ZZDev",
+            "license": "MIT",
+            "source": "https://github.com/zvms/zvms4-backend-python.git",
+            "apis": {
+                "user": "/api/users",
+                "activity": "/api/activities",
+                "group": "/api/groups",
+                "exports": "/api/exports",
+                "imports": "/api/imports",
+                "logs": "/api/logs",
+            },
+        },
+    }
+
+
+# Redirect singular routes to plural routes
+@app.api_route("/api/user/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def redirect_user(request: Request, path: str):
+    new_url = request.url.replace(path="/api/users/" + path)
+    return RedirectResponse(url=new_url)
+
+
+@app.api_route("/api/activity/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def redirect_activity(request: Request, path: str):
+    new_url = request.url.replace(path="/api/activities/" + path)
+    return RedirectResponse(url=new_url)
+
+
+@app.api_route("/api/group/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def redirect_group(request: Request, path: str):
+    new_url = request.url.replace(path="/api/groups/" + path)
+    return RedirectResponse(url=new_url)
+
+
+@app.api_route("/api/export/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def redirect_export(request: Request, path: str):
+    new_url = request.url.replace(path="/api/exports/" + path)
+    return RedirectResponse(url=new_url)
+
+
+@app.api_route("/api/import/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def redirect_import(request: Request, path: str):
+    new_url = request.url.replace(path="/api/imports/" + path)
+    return RedirectResponse(url=new_url)
+
+
+@app.api_route("/api/log/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def redirect_log(request: Request, path: str):
+    new_url = request.url.replace(path="/api/logs/" + path)
+    return RedirectResponse(url=new_url)
+
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint."""
+    try:
+        # Check MongoDB connection
+        await db.zvms.command("ping")
+        return {"status": "ok", "code": 200, "data": "OK"}
+    except Exception as e:
+        return {"status": "error", "code": 500, "data": str(e)}
 
 
 @app.get("/api/cert")
@@ -88,6 +147,7 @@ async def get_cert():
         "code": 200,
         "data": open("./rsa_public_key.pem", "r").read(),
     }
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(_: Request, exc: RequestValidationError):
@@ -111,12 +171,12 @@ async def generic_exception_handler():
         content={"detail": "An internal server error occurred"}, status_code=500
     )
 
+
 @app.exception_handler(OperationFailure)
 async def operation_failure_exception_handler(_: Request, exc: OperationFailure):
     """Catch-all exception handler to return a generic error message."""
-    return JSONResponse(
-        content={"detail": exc.details['errmsg']}, status_code=400
-    )
+    return JSONResponse(content={"detail": exc.details["errmsg"]}, status_code=400)
+
 
 @app.get("/api/version")
 async def get_version():

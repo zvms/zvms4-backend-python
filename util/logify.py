@@ -4,6 +4,7 @@ from enum import Enum
 from json import dumps
 from database import db
 
+
 def get_client_ip(request: Request) -> str:
     """
     Get client IP address
@@ -11,6 +12,7 @@ def get_client_ip(request: Request) -> str:
     if "X-Forwarded-For" in request.headers:
         return request.headers["X-Forwarded-For"]
     return request.client.host
+
 
 def get_client_clarity_user_id(request: Request) -> str:
     """
@@ -20,8 +22,9 @@ def get_client_clarity_user_id(request: Request) -> str:
     if "_clck" in request.cookies:
         return request.cookies["_clck"].split("%7C")[0]
     if "Clarity-ID" in request.headers:
-        return request.headers['Clarity-ID']
-    return ''
+        return request.headers["Clarity-ID"]
+    return ""
+
 
 def binding_user_credentials(request: Request) -> dict:
     """
@@ -29,5 +32,5 @@ def binding_user_credentials(request: Request) -> dict:
     """
     return {
         "clarity_id": get_client_clarity_user_id(request),
-        "ip": get_client_ip(request)
+        "ip": get_client_ip(request),
     }

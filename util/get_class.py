@@ -30,9 +30,8 @@ async def get_user_class(user_oid: str) -> str:
 
 
 async def get_activities_related_to_user(
-    user_oid: str, page: int = -1, perpage: int = 10, query: str = "", target: str = ''
+    user_oid: str, page: int = -1, perpage: int = 10, query: str = "", target: str = ""
 ):
-
     if not target:
         target = await get_user_class(user_oid)
 
@@ -60,7 +59,10 @@ async def get_activities_related_to_user(
                         "input": "$members",
                         "as": "member",
                         "cond": {
-                            "$in": ["$$member._id", [str(user["_id"]) for user in users]]
+                            "$in": [
+                                "$$member._id",
+                                [str(user["_id"]) for user in users],
+                            ]
                         },
                     }
                 },

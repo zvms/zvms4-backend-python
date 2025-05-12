@@ -26,7 +26,7 @@ class UserLogin(BaseModel):
 
 
 class UserEligibility(Enum):
-    Rating = 'rating'
+    Rating = "rating"
 
 
 class User(BaseModel):
