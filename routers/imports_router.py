@@ -9,7 +9,8 @@ from typings.activity import (
     ActivityStatus,
     ActivityType,
     MemberActivityStatus,
-    SpecialActivityClassify, Special,
+    SpecialActivityClassify,
+    Special,
 )
 from fastapi import APIRouter, File, HTTPException, Depends, UploadFile
 import copy
@@ -27,8 +28,13 @@ router = APIRouter()
 
 
 @router.post("/activities")
-async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File(...), user=Depends(get_current_user),
-                                log=Depends(inject_log)):
+async def upload_activity_excel(
+    name: str,
+    desc: str,
+    payload: UploadFile = File(...),
+    user=Depends(get_current_user),
+    log=Depends(inject_log),
+):
     """
     Upload activity excel
     """
@@ -36,23 +42,39 @@ async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File
     if not validate_activity_name(name):
         raise HTTPException(status_code=400, detail="Invalid activity name.")
 
-    if payload.content_type != 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' and \
-        payload.content_type != 'application/vnd.ms-excel':
-        raise HTTPException(status_code=400, detail="Invalid file format. You should upload an excel file")
+    if (
+        payload.content_type
+        != "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        and payload.content_type != "application/vnd.ms-excel"
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file format. You should upload an excel file",
+        )
 
-    expected_columns = ['_id', 'ID', 'Name', 'Class', 'On Campus', 'Off Campus', 'Social Practice']
+    expected_columns = [
+        "_id",
+        "ID",
+        "Name",
+        "Class",
+        "On Campus",
+        "Off Campus",
+        "Social Practice",
+    ]
 
     try:
         contents = await payload.read()
 
-        await db.zvms.imports.insert_one({
-            "name": name,
-            "filename": payload.filename,
-            "description": desc,
-            "user": user['id'],
-            "date": datetime.now().isoformat(),
-            "content": Binary(contents)
-        })
+        await db.zvms.imports.insert_one(
+            {
+                "name": name,
+                "filename": payload.filename,
+                "description": desc,
+                "user": user["id"],
+                "date": datetime.now().isoformat(),
+                "content": Binary(contents),
+            }
+        )
 
         filename = BytesIO(contents)
 
@@ -68,24 +90,42 @@ async def upload_activity_excel(name: str, desc: str, payload: UploadFile = File
             raise HTTPException(status_code=400, detail="Invalid excel format")
 
         df.fillna(0.0)
-        accepted_modes = ['On Campus', 'Off Campus', 'Social Practice']
+        accepted_modes = ["On Campus", "Off Campus", "Social Practice"]
 
-        info = Activity(_id='', type=ActivityType.special, name=name, description=desc, members=[], registration=None,
-                        date=datetime.now().isoformat(), createdAt=datetime.now().isoformat(),
-                        updatedAt=datetime.now().isoformat(), creator=user['id'], status=ActivityStatus.effective,
-                        special=Special(classify=SpecialActivityClassify.import_), approver='authority')
+        info = Activity(
+            _id="",
+            type=ActivityType.special,
+            name=name,
+            description=desc,
+            members=[],
+            registration=None,
+            date=datetime.now().isoformat(),
+            createdAt=datetime.now().isoformat(),
+            updatedAt=datetime.now().isoformat(),
+            creator=user["id"],
+            status=ActivityStatus.effective,
+            special=Special(classify=SpecialActivityClassify.import_),
+            approver="authority",
+        )
 
         for mode in accepted_modes:
             template = copy.deepcopy(info)
-            template.name += '\u2014' + mode
+            template.name += "\u2014" + mode
             for idx, row in df.iterrows():
                 if row[mode] != 0.0 and not pd.isna(row[mode]):
-                    users = await db.zvms.users.find_one({"_id": validate_object_id(row['_id'])})
+                    users = await db.zvms.users.find_one(
+                        {"_id": validate_object_id(row["_id"])}
+                    )
                     if users is not None:
                         template.members.append(
-                            ActivityMember(_id=row['_id'], id=row['_id'], status=MemberActivityStatus.effective,
-                                           mode=ActivityMode(mode.replace(' ', '-').lower()),
-                                           duration=row[mode]))
+                            ActivityMember(
+                                _id=row["_id"],
+                                id=row["_id"],
+                                status=MemberActivityStatus.effective,
+                                mode=ActivityMode(mode.replace(" ", "-").lower()),
+                                duration=row[mode],
+                            )
+                        )
             if len(template.members) != 0:
                 await create_activity(template, user=user, log=log)
     except Exception as e:

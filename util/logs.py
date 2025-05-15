@@ -4,6 +4,7 @@ from enum import Enum
 from json import dumps
 from database import db
 
+
 def get_client_ip(request: Request) -> str:
     """
     Get client IP address
@@ -37,7 +38,9 @@ class LogType(Enum):
 
 
 class ZVMSLog:
-    def __init__(self, log_type: LogType, user: str, detail: str, ip: str, affected: list[str]):
+    def __init__(
+        self, log_type: LogType, user: str, detail: str, ip: str, affected: list[str]
+    ):
         self.type = log_type
         self.user = user
         self.detail = detail
@@ -45,13 +48,15 @@ class ZVMSLog:
         self.affected = affected
 
     def __str__(self):
-        return dumps({
-            "type": self.type.value,
-            "user": str(self.user),
-            "detail": self.detail,
-            "ip": self.ip,
-            "affected": self.affected
-        })
+        return dumps(
+            {
+                "type": self.type.value,
+                "user": str(self.user),
+                "detail": self.detail,
+                "ip": self.ip,
+                "affected": self.affected,
+            }
+        )
 
     def model_dump(self) -> dict:
         return {
@@ -59,7 +64,7 @@ class ZVMSLog:
             "user": self.user,
             "detail": self.detail,
             "ip": self.ip,
-            "affected": self.affected
+            "affected": self.affected,
         }
 
     def save(self):

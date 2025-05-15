@@ -24,7 +24,7 @@ def hash_password(password):
 
 
 def check_password(password: str, hashed: str):
-    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
 public_key = RSA.import_key(open("rsa_public_key.pem", "rb").read())
@@ -99,7 +99,7 @@ async def validate_by_cert(id: str, cert: str, type: Optional[str] = "long"):
     if checkpw(
         bytes(auth_field["password"], "utf-8"), bytes(user["password"], "utf-8")
     ):
-        if 'eligibility' in user:
+        if "eligibility" in user:
             eligibility = user["eligibility"]
         else:
             eligibility = []

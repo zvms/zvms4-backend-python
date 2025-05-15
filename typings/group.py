@@ -19,7 +19,6 @@ class UserPosition(str, Enum):
     system = "system"
 
 
-
 class Group(BaseModel):
     _id: str
     name: str

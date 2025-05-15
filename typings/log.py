@@ -15,7 +15,15 @@ class ZVMSLog:
     timestamp: float
     ip: str
 
-    def __init__(self, url: str = '', user: str = '', clarity: str = '', data: str = '', ip: str = '', timestamp: float = datetime.now().timestamp()):
+    def __init__(
+        self,
+        url: str = "",
+        user: str = "",
+        clarity: str = "",
+        data: str = "",
+        ip: str = "",
+        timestamp: float = datetime.now().timestamp(),
+    ):
         self.url = url
         self.user = user
         self.clarity = clarity
@@ -30,10 +38,10 @@ class ZVMSLog:
             "clarity": self.clarity,
             "data": self.data,
             "ip": self.ip,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         }
 
-    def with_text(self, text: str) -> 'ZVMSLog':
+    def with_text(self, text: str) -> "ZVMSLog":
         self.data = text
         return self
 
@@ -42,13 +50,18 @@ class ZVMSLog:
 
     @property
     def includes_clarity(self) -> bool:
-        return self.clarity != '' and self.clarity is not None
+        return self.clarity != "" and self.clarity is not None
 
-def inject_log(request: Request, user=Depends(get_current_user), meta=Depends(binding_user_credentials)):
+
+def inject_log(
+    request: Request,
+    user=Depends(get_current_user),
+    meta=Depends(binding_user_credentials),
+):
     url = str(request.url)
-    user = user['id']
-    clarity = meta['clarity_id']
-    ip = meta['ip']
-    data = ''
+    user = user["id"]
+    clarity = meta["clarity_id"]
+    ip = meta["ip"]
+    data = ""
     timestamp = datetime.timestamp(datetime.now())
     return ZVMSLog(url, user, clarity, data, ip, timestamp)

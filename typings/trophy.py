@@ -37,7 +37,7 @@ class TrophyMemberStatus(str, Enum):
 
 
 class TrophyMember(BaseModel):
-    id: str = Field(..., alias='_id')
+    id: str = Field(..., alias="_id")
     award: str
     mode: ActivityMode
     status: TrophyMemberStatus

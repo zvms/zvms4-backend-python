@@ -50,7 +50,7 @@ class ExportVariant(Enum):
 
 
 class ExportTask(BaseModel):
-    id: uuid.UUID # UUID
+    id: uuid.UUID  # UUID
     status: ExportStatus
     format: ExportFormat
     variant: ExportVariant
@@ -59,5 +59,5 @@ class ExportTask(BaseModel):
     task_start: datetime
     task_end: Optional[datetime]
     percentage: float = 0
-    errmsg: str = ''
+    errmsg: str = ""
     result: Optional[list[dict]]

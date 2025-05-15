@@ -7,6 +7,7 @@ from util.object_id import get_current_user
 
 router = APIRouter()
 
+
 @router.get("")
 async def read_logs(
     performer: str = "",
@@ -16,9 +17,13 @@ async def read_logs(
     user=Depends(get_current_user),
 ):
     if "admin" not in user["per"]:
-        raise HTTPException(status_code=403, detail='Permission denied')
+        raise HTTPException(status_code=403, detail="Permission denied")
 
-    query: dict[str, Any] = {} if query == "" else {"$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}]}
+    query: dict[str, Any] = (
+        {}
+        if query == ""
+        else {"$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}]}
+    )
     if performer != "":
         query["user"] = performer
 
@@ -42,5 +47,5 @@ async def read_logs(
         "data": logs,
         "metadata": {
             "size": count,
-        }
+        },
     }

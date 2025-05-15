@@ -26,13 +26,13 @@ class ActivityMode(str, Enum):
 
 
 class ActivityMember(BaseModel):
-    id: str = Field(..., alias='_id')
+    id: str = Field(..., alias="_id")
     status: MemberActivityStatus
     mode: ActivityMode
     duration: float
 
     async def log(self):
-        return f'User {await get_user_name(self.id)} joined activity with mode {self.mode} and duration {self.duration}.'
+        return f"User {await get_user_name(self.id)} joined activity with mode {self.mode} and duration {self.duration}."
 
 
 class Registration(BaseModel):
@@ -72,8 +72,8 @@ class Activity(BaseModel):
     special: Optional[Special | None] = None
     approver: str
 
-    async def log(self, user: str=''):
-        template = f'''User {await get_user_name(user)} created activity {self.name} with description {self.description} at {self.createdAt} (ID: $PLACEHOLDER). It involves users:'''
+    async def log(self, user: str = ""):
+        template = f"""User {await get_user_name(user)} created activity {self.name} with description {self.description} at {self.createdAt} (ID: $PLACEHOLDER). It involves users:"""
         for member in self.members:
-            template += await member.log() + '\n'
+            template += await member.log() + "\n"
         return template

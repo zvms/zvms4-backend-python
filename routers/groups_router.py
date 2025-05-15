@@ -15,7 +15,11 @@ from util.calculate import calculate_time
 from util.cert import check_password
 from util.get_class import get_activities_related_to_user
 
-from util.object_id import compulsory_temporary_token, get_current_user, validate_object_id
+from util.object_id import (
+    compulsory_temporary_token,
+    get_current_user,
+    validate_object_id,
+)
 
 router = APIRouter()
 
@@ -152,7 +156,7 @@ async def get_class_activities(
     """
     Get activities related to a group
     """
-    if query != '' and 'admin' not in user['per']:
+    if query != "" and "admin" not in user["per"]:
         query = re.escape(query)
 
     same_class = False
@@ -225,9 +229,9 @@ async def get_users_in_class(
     for user in result:
         user["_id"] = str(user["_id"])
         if pwdm:
-            user['password'] = not check_password(user['id'], user['password'])
+            user["password"] = not check_password(user["id"], user["password"])
         else:
-            user['password'] = None
+            user["password"] = None
     return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
 
 
@@ -276,29 +280,38 @@ async def get_user_times_in_class(
     time = []
     for user in result:
         if start is not None and end is not None:
-            user_time = await calculate_time(str(user['_id']), (start, end))
+            user_time = await calculate_time(str(user["_id"]), (start, end))
         else:
-            user_time = await calculate_time(str(user['_id']))
+            user_time = await calculate_time(str(user["_id"]))
         if exceeding or shortage:
-            more_on_campus = min(round(max(user_time['off-campus'] - 15, 1) / 2, 0), 6.0)
-            more_off_campus = min(round(max(user_time['on-campus'] - 25, 1) / 3, 0), 6.0)
-            user_time['on-campus'] += more_on_campus
-            user_time['off-campus'] += more_off_campus
+            more_on_campus = min(
+                round(max(user_time["off-campus"] - 15, 1) / 2, 0), 6.0
+            )
+            more_off_campus = min(
+                round(max(user_time["on-campus"] - 25, 1) / 3, 0), 6.0
+            )
+            user_time["on-campus"] += more_on_campus
+            user_time["off-campus"] += more_off_campus
         if shortage:
-            user_time['on-campus'] = max(25 - user_time['on-campus'], 0)
-            user_time['off-campus'] = max(15 - user_time['off-campus'], 0)
-            user_time['social-practice'] = max(18 - user_time['social-practice'], 0)
-        group = await db.zvms.groups.find_one({"_id": {"$in": list(map(lambda x: ObjectId(x), user['group']))}, "type": "class"})
+            user_time["on-campus"] = max(25 - user_time["on-campus"], 0)
+            user_time["off-campus"] = max(15 - user_time["off-campus"], 0)
+            user_time["social-practice"] = max(18 - user_time["social-practice"], 0)
+        group = await db.zvms.groups.find_one(
+            {
+                "_id": {"$in": list(map(lambda x: ObjectId(x), user["group"]))},
+                "type": "class",
+            }
+        )
         if group is None:
             continue
         doc = {
-            '_id': str(user["_id"]),
-            'name': user["name"],
-            'id': str(user["id"]),
-            'group': group['name'],
-            'on-campus': user_time["on-campus"],
-            'off-campus': user_time["off-campus"],
-            'social-practice': user_time["social-practice"]
+            "_id": str(user["_id"]),
+            "name": user["name"],
+            "id": str(user["id"]),
+            "group": group["name"],
+            "on-campus": user_time["on-campus"],
+            "off-campus": user_time["off-campus"],
+            "social-practice": user_time["social-practice"],
         }
         time.append(doc)
     return {"status": "ok", "code": 200, "data": time, "metadata": {"size": count}}
@@ -348,9 +361,7 @@ async def delete_group(group_id: str, user=Depends(compulsory_temporary_token)):
 
 @router.get("/{group_id}/template")
 async def get_group_template(
-    group_id: str,
-    export_format: ExportFormat,
-    user=Depends(get_current_user)
+    group_id: str, export_format: ExportFormat, user=Depends(get_current_user)
 ):
     same_class = False
     if "secretary" in user["per"]:
@@ -372,25 +383,29 @@ async def get_group_template(
 
     db_users = await db.zvms.users.find({"group": group_id}).to_list(None)
 
-    group_name = (await db.zvms.groups.find_one({"_id": ObjectId(group_id)}))['name']
+    group_name = (await db.zvms.groups.find_one({"_id": ObjectId(group_id)}))["name"]
 
     users = []
 
     for user in db_users:
-        users.append({
-            '_id': str(user['_id']),
-            'ID': user['id'],
-            'Name': user['name'],
-            'Class': group_name,
-            'On Campus': None,
-            'Off Campus': None,
-            'Social Practice': None
-        })
+        users.append(
+            {
+                "_id": str(user["_id"]),
+                "ID": user["id"],
+                "Name": user["name"],
+                "Class": group_name,
+                "On Campus": None,
+                "Off Campus": None,
+                "Social Practice": None,
+            }
+        )
 
-    table = pd.DataFrame(users).sort_values('ID')
+    table = pd.DataFrame(users).sort_values("ID")
 
     buffer = BytesIO()
-    with tempfile.NamedTemporaryFile(suffix=f'.{export_format.suffix()}', delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(
+        suffix=f".{export_format.suffix()}", delete=False
+    ) as tmp:
         if export_format == ExportFormat.excel:
             table.to_excel(tmp.name, index=False)
         elif export_format == ExportFormat.csv:
