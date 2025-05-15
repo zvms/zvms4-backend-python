@@ -27,6 +27,7 @@ app.add_middleware(
         "http://localhost:5173",
         "https://v4.zvms.site",
         "https://v4-netlify.zvms.site",
+        "https://main--zvms.netlify.app",
         "https://deploy-preview-70--zvms.netlify.app",
     ],
     allow_credentials=True,
