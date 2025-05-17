@@ -2,7 +2,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from h11 import Data
 from urllib.parse import urlencode, urlparse
-from typings.user import User
+
+from conversion.groups import trans_permissions
+from typings.user import User, UserPosition as UserPositionV1
+from typings.user_v2 import UserPosition as UserPositionV2
 import jwt
 from typing import Optional
 from datetime import datetime, timezone
@@ -34,6 +37,10 @@ def string_to_option_object_id(id: str):
     except:
         return None
     return _id
+
+
+def upgrade_user_positions(positions: list[UserPositionV1]) -> list[UserPositionV2]:
+    return [trans_permissions(pos) for pos in positions]
 
 
 async def get_user(oid: str):
@@ -97,9 +104,9 @@ async def get_current_user(
             raise_exception()
         user = {
             "id": oid,
-            "per": payload.get("per", None),
+            "perm": upgrade_user_positions(payload.get("per", None)),
+            "per": upgrade_user_positions(payload.get("per", None)),
             "scope": payload.get("scope", None),
-            "elg": payload.get("elg", None),
         }
         if user is None:
             raise_exception()

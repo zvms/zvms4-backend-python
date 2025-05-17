@@ -15,9 +15,7 @@ class UserPosition(str, Enum):
     student = "student"
     secretary = "secretary"
     department = "department"
-    auditor = "auditor"
     admin = "admin"
-    system = "system"
 
 
 class UserLogin(BaseModel):
@@ -31,7 +29,7 @@ class UserEligibility(Enum):
 
 class User(BaseModel):
     _id: str
-    id: int
+    id: str
     name: str
     sex: UserSex
     group: list[str]

@@ -17,6 +17,7 @@ class UserPosition(str, Enum):
     auditor = "auditor"
     admin = "admin"
     system = "system"
+    inspector = "inspector"
 
 
 class Group(BaseModel):

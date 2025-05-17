@@ -1,102 +1,26 @@
 import re
-from typings.activity import (
-    Activity,
-    ActivityMember,
-    ActivityStatus,
-    ActivityType,
-    MemberActivityStatus,
-    SpecialActivityClassify,
-)
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import RedirectResponse
 from typings.log import inject_log
-from util.group import is_in_a_same_class
 from util.user import get_user_name
 from util.object_id import (
-    compulsory_temporary_token,
     get_current_user,
     validate_object_id,
 )
 from datetime import datetime
 from database import db
 from pydantic import BaseModel
-
 from util.validation import validate_activity_name
 
 router = APIRouter()
 
 
 @router.post("")
-async def create_activity(
-    payload: Activity, user=Depends(get_current_user), log=Depends(inject_log)
-):
-    """
-    Create activity
-    """
-
-    # remove _id
-
-    if not validate_activity_name(payload.name)[0]:
-        raise HTTPException(
-            status_code=400, detail=validate_activity_name(payload.name)[1]
-        )
-
-    print(user)
-
-    none_permission = len(user["per"]) == 1 and "student" in user["per"]
-    only_secretary = (
-        len(user["per"]) == 2
-        and "secretary" in user["per"]
-        and "student" in user["per"]
+async def create_activity():
+    raise HTTPException(
+        status_code=410,
+        detail="Deprecated, please upgrade your client, or use /api/v2/activities instead.",
     )
-
-    payload.creator = user["id"]
-
-    if payload.type == ActivityType.special and payload.special is None:
-        raise HTTPException(
-            status_code=400, detail="Special activity must have a classify"
-        )
-
-    if (
-        payload.type == ActivityType.social
-        or payload.type == ActivityType.scale
-        or payload.type == ActivityType.specified
-    ):
-        payload.status = ActivityStatus.pending
-    elif none_permission and payload.type == ActivityType.special:
-        raise HTTPException(status_code=403, detail="Permission denied")
-    elif only_secretary and payload.type == ActivityType.specified:
-        payload.status = ActivityStatus.pending
-    elif only_secretary and payload.type == ActivityType.special:
-        raise HTTPException(status_code=403, detail="Permission denied")
-    elif (
-        "admin" not in user["per"]
-        and payload.type == ActivityType.special
-        and payload.special is not None
-        and payload.special.classify is not None
-        and payload.special.classify == SpecialActivityClassify.import_
-    ):
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    diction = payload.model_dump()
-
-    members = diction["members"]
-
-    for member in members:
-        member["_id"] = member["id"]
-        del member["id"]
-
-    diction["members"] = members
-
-    # Create activity
-    result = await db.zvms.activities.insert_one(diction)
-
-    id = result.inserted_id
-
-    log.with_text((await payload.log(user["id"])).replace("$PLACEHOLDER", str(id)))
-    await log.insert_log()
-
-    return {"status": "ok", "code": 201, "data": str(id)}
 
 
 class PutDescription(BaseModel):
@@ -536,171 +460,37 @@ async def update_activity_member_duration(
 
 
 @router.post("/{activity_oid}/member")
-async def user_activity_signup(
-    activity_oid: str,
-    member: ActivityMember,
-    user=Depends(get_current_user),
-    log=Depends(inject_log),
-):
-    """
-    Append user to activity
-    If user doesn't have permission, regard as a registration. Check the register limit, if full, raise 403.
-    If user is department, directly append user to activity if the activity is created by the department.
-    If user is secretary, user is allowed to append user who is in the same class.
-    Admin is allowed to append user to any activity.
-    """
-
-    log.with_text(await member.log())
-    await log.insert_log()
-
-    # Read activity
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
+async def user_activity_signup():
+    raise HTTPException(
+        status_code=410,
+        detail="Deprecated, please upgrade your client, or use /api/v2/activities/{activity_oid}/members instead.",
     )
-
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    # Check available if user doesn't have any other permission
-    _flag = False
-    if (
-        "secretary" not in user["per"]
-        and "admin" not in user["per"]
-        and "department" not in user["per"]
-    ):
-        raise HTTPException(status_code=403, detail="Permission denied.")
-    elif "secretary" in user["per"] and "department" not in user["per"]:
-        member.status = MemberActivityStatus.effective
-        if not is_in_a_same_class(user["id"], member.id):
-            raise HTTPException(
-                status_code=403, detail="Permission denied, not in class."
-            )
-        if activity["type"] == ActivityType.special:
-            raise HTTPException(
-                status_code=403,
-                detail="Permission denied, cannot be appended to this activity.",
-            )
-    elif "department" in user["per"] or "admin" in user["per"]:
-        member.status = MemberActivityStatus.effective
-    else:
-        raise HTTPException(status_code=403, detail="Permission denied.")
-
-    diction = member.model_dump()
-    diction["_id"] = diction["id"]
-    del diction["id"]
-
-    # Append user to activity
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid)},
-        {"$addToSet": {"members": diction}},
-    )
-
-    return {
-        "status": "ok",
-        "code": 201,
-    }
 
 
 @router.get("/{activity_oid}/members/{uid}")
 async def read_activity_user(
     activity_oid: str, uid: str, user=Depends(get_current_user)
 ):
-    if (
-        "department" not in user["per"]
-        and "admin" not in user["per"]
-        and ("secretary" not in user["per"])
-        and user["id"] != str(validate_object_id(uid))
-    ):
-        raise HTTPException(status_code=403, detail="Permission denined.")
-    activity = await db.zvms.activities.find(
-        {"_id": validate_object_id(activity_oid), "members._id": uid},
-        {"members.$": 1, "_id": 0},
-    ).to_list(None)
-    return {"status": "ok", "code": 200, "data": activity[0]["members"][0]}
+    raise HTTPException(
+        status_code=410,
+        detail="Deprecated, please upgrade your client, or use /api/v2/activities/{activity_oid}/members instead.",
+    )
 
 
 @router.delete("/{activity_oid}/members/{uid}")
-async def user_activity_signoff(
-    activity_oid: str,
-    uid: str,
-    user=Depends(compulsory_temporary_token),
-    log=Depends(inject_log),
-):
-    """
-    User exit activity or admin remove user from activity
-    """
-
-    # Check if member in activity
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
+async def user_activity_signoff():
+    raise HTTPException(
+        status_code=410,
+        detail="Deprecated, please upgrade your client, or use /api/v2/activities/{activity_oid}/members instead.",
     )
-
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    _flag = False
-    for member in activity["members"]:
-        if member["_id"] == uid:
-            _flag = True
-            break
-    if not _flag:
-        raise HTTPException(status_code=400, detail="User not in activity")
-    # Check user permission
-    if user["id"] != str(validate_object_id(uid)) and (
-        "admin" not in user["per"] and "department" not in user["per"]
-    ):
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    # Remove user from activity
-    await db.zvms.activities.update_one(
-        {"_id": validate_object_id(activity_oid)},
-        {"$pull": {"members": {"_id": uid}}},
-    )
-
-    log.with_text(
-        f"User {await get_user_name(user['id'])} removed user {await get_user_name(uid)} from activity {activity_oid} ({activity['name']})"
-    )
-    await log.insert_log()
-
-    return {
-        "status": "ok",
-        "code": 200,
-    }
 
 
 @router.delete("/{activity_oid}")
-async def delete_activity(
-    activity_oid: str, user=Depends(compulsory_temporary_token), log=Depends(inject_log)
-):
-    """
-    Remove activity
-    """
-
-    activity = await db.zvms.activities.find_one(
-        {"_id": validate_object_id(activity_oid)}
+async def delete_activity():
+    raise HTTPException(
+        status_code=410,
+        detail="Deprecated, please upgrade your client, or use /api/v2/activities/{activity_oid} instead.",
     )
-
-    log.with_text(
-        f"User {await get_user_name(user['id'])} deleted activity {activity['name']} with id {activity_oid}"
-    )
-    await log.insert_log()
-
-    if not activity:
-        raise HTTPException(status_code=404, detail="Activity not found")
-
-    if (
-        user["id"] != activity["creator"]
-        and "admin" not in user["per"]
-        and "department" not in user["per"]
-    ):
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    _ = await db.zvms.activities.delete_one({"_id": validate_object_id(activity_oid)})
-
-    return {
-        "status": "ok",
-        "code": 200,
-    }
 
 
 @router.api_route(

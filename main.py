@@ -2,7 +2,6 @@ from fastapi import Request, Response, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from pymongo.errors import OperationFailure
-
 from routers import (
     users_router,
     activities_router,
@@ -10,6 +9,9 @@ from routers import (
     exports_router,
     imports_router,
     logs_router,
+    activities_v2_router,
+    users_v2_router,
+    groups_v2_router,
 )
 from database import close_mongo_connection, connect_to_mongo
 import socketio
@@ -19,7 +21,7 @@ from database import db
 sio = socketio.AsyncServer(async_mode="asgi")
 socket = socketio.ASGIApp(sio)
 
-app = FastAPI()
+app = FastAPI(default_response_class=JSONResponse)
 
 app.add_middleware(
     CORSMiddleware,
@@ -67,6 +69,10 @@ app.include_router(groups_router.router, prefix="/api/groups", tags=["groups"])
 app.include_router(exports_router.router, prefix="/api/exports", tags=["exports"])
 app.include_router(imports_router.router, prefix="/api/imports", tags=["imports"])
 app.include_router(logs_router.router, prefix="/api/logs", tags=["logs"])
+
+app.include_router(activities_v2_router.router, prefix="/api/v2/activities")
+app.include_router(users_v2_router.router, prefix="/api/v2/users")
+app.include_router(groups_v2_router.router, prefix="/api/v2/groups")
 
 
 @app.router.get("/api/")
