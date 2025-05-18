@@ -51,6 +51,7 @@ async def create_activity_v2(
     log.with_text(
         f'User {await get_user_name(user['id'])} (ID: {user['id']}) created activity {activity["name"]} at {datetime.now().isoformat()}. It\'s {activity["status"]} and the creator is {activity["creator"]}. The ID of the activity is {result.inserted_id}.'
     )
+    await log.insert_log()
 
     return JSONResponse({"id": str(result.inserted_id)}, status_code=201)
 
@@ -179,8 +180,9 @@ async def delete_activity_v2(
         raise HTTPException(status_code=404, detail="Activity not found")
 
     log.with_text(
-        f'User {user["name"]} deleted activity {target_activity["name"]} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
+        f'User {await get_user_name(user["id"])} deleted activity {target_activity["name"]} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
     )
+    await log.insert_log()
 
     return {"detail": "Activity deleted successfully"}
 
