@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from database import db
 from util.object_id import get_current_user
 from collections import defaultdict
+from util.permission.user import validate_read_user_permission
 
 router = APIRouter()
 
@@ -16,7 +17,7 @@ async def get_user_activities_v2(
     sort: str = "_id",
     regex: bool = True,
     asc: bool = False,
-    # user=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """
     Get user activities
@@ -29,6 +30,7 @@ async def get_user_activities_v2(
     :param asc: Sort in ascending order
     :param user: Current user
     """
+    await validate_read_user_permission(user, user_id, "volunteer")
 
     # Check if the user has permission to view the activities
     # skipped right now
@@ -107,6 +109,7 @@ async def get_user_activities_v2(
         "activities": activities,
     }
 
+
 @router.get("/{user_id}/time")
 async def get_user_time_v2(user_id: str, user=Depends(get_current_user)):
     """
@@ -117,13 +120,16 @@ async def get_user_time_v2(user_id: str, user=Depends(get_current_user)):
 
     :return: User time
     """
+    await validate_read_user_permission(user, user_id, "volunteer")
 
-    collections = await db.zvms_new.get_collection('activity_members').find({
-        'member': user_id
-    }).to_list(None)
+    collections = (
+        await db.zvms_new.get_collection("activity_members")
+        .find({"member": user_id})
+        .to_list(None)
+    )
     result = defaultdict(float)
     for m in collections:
-        result[m['mode']] += m['duration']
+        result[m["mode"]] += m["duration"]
     result = dict(result)
 
     return result
