@@ -128,6 +128,9 @@ async def get_user_time_v2(user_id: str, user=Depends(get_current_user)):
         .to_list(None)
     )
     result = defaultdict(float)
+    result["on-campus"] = 0
+    result["off-campus"] = 0
+    result["social-practice"] = 0
     for m in collections:
         result[m["mode"]] += m["duration"]
     result = dict(result)

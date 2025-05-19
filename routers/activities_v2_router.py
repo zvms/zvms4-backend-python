@@ -1,7 +1,9 @@
 import re
 from datetime import datetime
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, UJSONResponse
+from pydantic import BaseModel
 from database import db
 from typings.activity_v2 import Activity, ActivityMember
 from typings.log import inject_log
@@ -28,14 +30,9 @@ async def create_activity_v2(
 
     The new version of the activity creation endpoint, using the latest data model.
     """
-    perm_check = await volunteer.validate_create_permission(
-        user, activity.type == "hybrid"
-    )
+    await volunteer.validate_create_permission(user, activity.type == "hybrid")
 
-    if perm_check == "partial":
-        activity.status = "pending"
-    else:
-        activity.status = "effective"
+    activity.status = "pending"
 
     validated, reason = validate_activity_name(activity.name)
 
@@ -374,3 +371,54 @@ async def delete_activity_member_v2(
         raise HTTPException(status_code=404, detail="Activity member not found")
 
     return {"detail": "Activity member deleted successfully"}
+
+
+class PutActivityStatus(BaseModel):
+    status: Literal["effective", "pending", "rejected"]
+
+
+@router.put("/{activity_id}/status")
+async def modify_activity_status_v2(
+    activity_id: str,
+    status: PutActivityStatus,
+    user=Depends(get_current_user),
+    log=Depends(inject_log),
+):
+    """
+    :param activity_id: ID of the activity to be retrieved
+    :param user: Current user
+    :param status: Status to be set
+    :param log: Logger object
+
+    :return: None
+    """
+
+    target_activity = await db.zvms_new.get_collection("activities").find_one(
+        {"_id": validate_object_id(activity_id)}
+    )
+
+    if not target_activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    if target_activity["status"] != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail="Activity status can only be modified from pending to effective or rejected",
+        )
+
+    await volunteer.validate_check_permission(user, target_activity)
+
+    result = await db.zvms_new.get_collection("activities").update_one(
+        {"_id": validate_object_id(activity_id)},
+        {"$set": {"status": status.status}},
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    log.with_text(
+        f'User {await get_user_name(user["id"])} updated activity {target_activity["name"]} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
+    )
+    await log.insert_log()
+
+    return JSONResponse({"detail": "Activity status updated successfully"})
