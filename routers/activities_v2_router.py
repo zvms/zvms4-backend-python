@@ -374,7 +374,7 @@ async def delete_activity_member_v2(
 
 
 class PutActivityStatus(BaseModel):
-    status: Literal["effective", "pending", "rejected"]
+    status: Literal["effective", "pending", "refused"]
 
 
 @router.put("/{activity_id}/status")
@@ -403,7 +403,7 @@ async def modify_activity_status_v2(
     if target_activity["status"] != "pending":
         raise HTTPException(
             status_code=400,
-            detail="Activity status can only be modified from pending to effective or rejected",
+            detail="Activity status can only be modified from pending to effective or refused",
         )
 
     await volunteer.validate_check_permission(user, target_activity)
