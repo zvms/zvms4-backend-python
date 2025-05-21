@@ -400,7 +400,9 @@ async def modify_activity_status_v2(
     if not target_activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    if target_activity["status"] != "pending":
+    target_activity = Activity.model_validate(target_activity, strict=False)
+
+    if target_activity.status != "pending":
         raise HTTPException(
             status_code=400,
             detail="Activity status can only be modified from pending to effective or refused",
@@ -417,7 +419,7 @@ async def modify_activity_status_v2(
         raise HTTPException(status_code=404, detail="Activity not found")
 
     log.with_text(
-        f'User {await get_user_name(user["id"])} updated activity {target_activity["name"]} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
+        f'User {await get_user_name(user["id"])} updated activity {target_activity.name} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
     )
     await log.insert_log()
 
