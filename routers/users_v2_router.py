@@ -122,9 +122,22 @@ async def get_user_time_v2(user_id: str, user=Depends(get_current_user)):
     """
     await validate_read_user_permission(user, user_id, "volunteer")
 
+    accepted_activities = (
+        await db.zvms_new.get_collection("activities")
+        .find({"status": "effective"})
+        .to_list(None)
+    )
+    accepted_activities = [str(activity["_id"]) for activity in accepted_activities]
+
     collections = (
         await db.zvms_new.get_collection("activity_members")
-        .find({"member": user_id})
+        .find(
+            {
+                "member": user_id,
+                "status": "effective",
+                "activity": {"$in": accepted_activities},
+            }
+        )
         .to_list(None)
     )
     result = defaultdict(float)

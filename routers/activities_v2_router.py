@@ -1,14 +1,16 @@
 import re
+from collections import defaultdict
 from datetime import datetime
 from typing import Literal
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse, UJSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from database import db
 from typings.activity_v2 import Activity, ActivityMember
 from typings.log import inject_log
 from typings.user import User as UserV1
-from util.object_id import get_current_user
+from util.object_id import get_current_user, compulsory_temporary_token
 from util.permission import volunteer, volunteer_member
 from util.user import get_user_name
 from util.validation import validate_activity_name
@@ -424,3 +426,173 @@ async def modify_activity_status_v2(
     await log.insert_log()
 
     return JSONResponse({"detail": "Activity status updated successfully"})
+
+
+class AmalgamationForm(BaseModel):
+    """
+    Form for amalgamating multiple activities into one.
+
+    This form is used to specify the activities to be amalgamated, the name and description of the new activity,
+
+    :param activities: List of activity IDs to be amalgamated
+    :param name: Name of the new activity
+    :param description: Description of the new activity. (optional) If not provided, it will be set to the concatenation of the names of the amalgamated activities.
+    :param duplicated: How to handle duplicated members. Options are 'max' (keep the maximum count) or 'merge' (sum the counts).
+    :param proceedPending: Whether to proceed with pending activities. If False, only effective activities will be amalgamated; if true, the final activity will be set to pending.
+    """
+
+    activities: list[str]
+    name: str
+    description: str=''
+    origin: Literal[
+        "labor",
+        "organization",
+        "tasks",
+        "occasions",
+        "import",
+        "activities",
+        "practice",
+        "club",
+        "prize",
+        "other",
+    ]
+    duplicated: Literal["max", "sum"]="max"
+    proceedPending: bool=False
+
+
+@router.post("/amalgamation")
+async def amalgamate_activities_v2(
+    form: AmalgamationForm, user=Depends(compulsory_temporary_token), log=Depends(inject_log)
+):
+    """
+    Amalgamate multiple activities into one.
+
+    The entire process involves the following steps:
+    1. Check if the user has permission to amalgamate activities.
+    2. Check **all** of activities are effective. If it includes `refused` activities, raise an error. Otherwise, amalgamate them according to the `proceedPending` parameter.
+    3. Create a new activity with the amalgamated information. It includes the following logics:
+        1. **Infer the type.** If all activities are of the same type, use that type. Otherwise, use `hybrid`.
+        2. **Infer the appointee.** If all activities have the same appointee, use that appointee. Otherwise, set it to the creator of the new activity.
+        3. The inference of approver is similar to appointee. However, if *any* of the activities has `authority` as the approver, the new activity will also have `authority` as the approver.
+        4. Process the status.
+           - If `proceedPending` is True, the new activity will be set to `pending`.
+           - If `proceedPending` is False, the new activity will be set to `effective`, but it will only include the members from the effective activities.
+    4. Amalgamate the members of the activities according to the `duplicated` parameter. If `duplicated` is set to `max`, the maximum count of the members will be kept. If `duplicated` is set to `merge`, the counts of the members will be summed up. Please be mind that an activity record can include a person with different modes (if `hybrid`), but can't include a person with the same mode multiple times. If it happens, an error will be raised.
+
+    :param form: AmalgamationForm containing the activities to be amalgamated and the new activity information
+    :param user: Current user
+    :param log: Logger object
+    :return: ID of the new amalgamated activity
+    """
+
+    # Here, we only allow admin and volunteer to amalgamate activities.
+    await volunteer.validate_create_permission(user, True)
+
+    pipeline = {
+        "_id": {
+            "$in": [validate_object_id(activity_id) for activity_id in form.activities]
+        },
+        "status": {"$in": ["effective", "pending", "refused"]},
+    }
+    if not form.proceedPending:
+        pipeline["status"] = "effective"
+
+    # Validate all activities are effective or pending
+    activities = [
+        {'_id': str(obj['_id']), **obj}
+        for obj in await db.zvms_new.get_collection("activities")
+        .find(pipeline)
+        .to_list(None)
+    ]
+
+    final_status = "effective" if not form.proceedPending else "pending"
+
+    if not activities:
+        raise HTTPException(status_code=404, detail="No activities found")
+    if any(activity['status'] == "refused" for activity in activities):
+        raise HTTPException(
+            status_code=400, detail="Cannot amalgamate refused activities"
+        )
+    if not all(activity['status'] in ["effective", "pending"] for activity in activities):
+        raise HTTPException(
+            status_code=400, detail="All activities must be effective or pending"
+        )
+    if all(activity['status'] == "effective" for activity in activities):
+        final_status = "effective"
+
+    final_appointee = set(activity['appointee'] for activity in activities)
+    if len(final_appointee) == 1:
+        final_appointee = final_appointee.pop()
+    else:
+        final_appointee = str(user["id"])
+    final_approver = (
+        "authority"
+        if any(activity['approver'] == "authority" for activity in activities)
+        else str(user["id"])
+    )
+    final_type = (
+        "hybrid"
+        if any(activity['type'] == "hybrid" for activity in activities)
+        else (
+            activities[0]['type']
+            if all(activity['type'] == activities[0]['type'] for activity in activities)
+            else "hybrid"
+        )
+    )
+    final_description = form.description or "Merged from " " and ".join(
+        activity['name'] for activity in activities
+    ) + "\n\nDescriptions:\n" + "\n".join(
+        activity['description'] for activity in activities
+    )
+    new_activity = Activity(
+        _id=str(ObjectId()),
+        name=form.name,
+        description=final_description,
+        type=final_type,
+        appointee=final_appointee,
+        approver=final_approver,
+        status=final_status,
+        creator=str(user["id"]),
+        origin=form.origin,
+        place="N/A",
+        date=datetime.now(),
+        createdAt=datetime.now(),
+        updatedAt=datetime.now(),
+    )
+    new_activity = new_activity.model_dump()
+    result = await db.zvms_new.get_collection("activities").insert_one(new_activity)
+    new_id = str(result.inserted_id)
+    log_text = (
+        f'User {await get_user_name(user["id"])} amalgamated activities {", ".join(form.activities)} into activity {form.name} at {datetime.now().isoformat()}. The ID of the new activity is {new_id}.'
+    )
+    await db.zvms_new.get_collection('activity_members').update_many({
+        "activity": {"$in": [str(activity['_id']) for activity in activities]}
+    }, {"$set": {"activity": new_id}})
+    # Then checkout duplicated members
+    # Step 1: Group documents by (mode, activity, member)
+    grouped = defaultdict(list)
+    for doc in (await db.zvms_new.get_collection("activity_members").find().to_list(None)):
+        key = (doc["mode"], doc["activity"], doc["member"])
+        grouped[key].append(doc)
+
+    # Step 2: For groups with duplicates, keep one with new duration
+    for key, docs in grouped.items():
+        if len(docs) <= 1:
+            continue
+
+        if form.duplicated == "sum":
+            new_duration = sum(d["duration"] for d in docs)
+        elif form.duplicated == "max":
+            new_duration = max(d["duration"] for d in docs)
+        else:
+            raise ValueError("Invalid duplicated mode")
+
+        # Keep the first doc, delete others
+        keep_doc = docs[0]
+        other_ids = [d["_id"] for d in docs[1:]]
+        db.zvms_new.get_collection('activity_members').delete_many({"_id": {"$in": other_ids}})
+        db.zvms_new.get_collection('activity_members').update_one({"_id": keep_doc["_id"]}, {"$set": {"duration": new_duration}})
+    log.with_text(log_text)
+    db.zvms_new.get_collection('activities').delete_many({'_id': {"$in": [validate_object_id(activity['_id']) for activity in activities]}})
+    await log.insert_log()
+    return JSONResponse({'_id': str(result.inserted_id)}, status_code=201)
