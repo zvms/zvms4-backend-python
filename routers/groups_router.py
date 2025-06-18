@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from database import db
 from pydantic import BaseModel
 
-from util.calculate import calculate_time
+from util.calculate import calculate_user_time
 from util.cert import check_password
 from util.get_class import get_activities_related_to_user
 
@@ -279,10 +279,7 @@ async def get_user_times_in_class(
     result = await db.zvms.users.aggregate(pipeline).to_list(None)
     time = []
     for user in result:
-        if start is not None and end is not None:
-            user_time = await calculate_time(str(user["_id"]), (start, end))
-        else:
-            user_time = await calculate_time(str(user["_id"]))
+        user_time = await calculate_user_time(str(user["_id"]), start, end)
         if exceeding or shortage:
             more_on_campus = min(
                 round(max(user_time["off-campus"] - 15, 1) / 2, 0), 6.0

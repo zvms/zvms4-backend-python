@@ -2,6 +2,7 @@ from fastapi import Request, Response, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from pymongo.errors import OperationFailure
+import signal
 from routers import (
     users_router,
     activities_router,
@@ -11,13 +12,16 @@ from routers import (
     logs_router,
     activities_v2_router,
     users_v2_router,
-    groups_v2_router,
+    groups_v2_router, activity_statistics_router,
 )
 from database import close_mongo_connection, connect_to_mongo
 import socketio
 from fastapi.middleware.cors import CORSMiddleware
 from database import db
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import asyncio
 
+scheduler = AsyncIOScheduler()
 sio = socketio.AsyncServer(async_mode="asgi")
 socket = socketio.ASGIApp(sio)
 
@@ -55,10 +59,26 @@ async def mark_all_tasks_failed():
         {"$set": {"status": "failed", "errmsg": "Program interrupted unexpectedly"}},
     )
 
+async def startup_event():
+    """Startup event handler to initialize the application."""
+    print("Starting up...")
+    await connect_to_mongo()
+    scheduler.start()
+    print("Application started.")
+    signal.signal(signal.SIGINT, lambda s, f: asyncio.create_task(shutdown_event()))
+    signal.signal(signal.SIGTERM, lambda s, f: asyncio.create_task(shutdown_event()))
+
+async def shutdown_event():
+    """Shutdown event handler to clean up resources."""
+    print("Shutting down...")
+    await close_mongo_connection()
+    await mark_all_tasks_failed()
+    scheduler.shutdown()
+    print("Application shut down.")
 
 # Register events
-app.add_event_handler("startup", connect_to_mongo)
-app.add_event_handler("shutdown", close_mongo_connection)
+app.add_event_handler("startup", startup_event)
+app.add_event_handler("shutdown", shutdown_event)
 
 # Register routes
 app.include_router(users_router.router, prefix="/api/users", tags=["users"])
@@ -73,6 +93,7 @@ app.include_router(logs_router.router, prefix="/api/logs", tags=["logs"])
 app.include_router(activities_v2_router.router, prefix="/api/v2/activities")
 app.include_router(users_v2_router.router, prefix="/api/v2/users")
 app.include_router(groups_v2_router.router, prefix="/api/v2/groups")
+app.include_router(activity_statistics_router.router, prefix="/api/v2/statistics/activities")
 
 
 @app.router.get("/api/")

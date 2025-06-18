@@ -603,7 +603,7 @@ class UpdateUserRecord(BaseModel):
     duration: float
     mode: Literal["on-campus", "off-campus", "social-practice"]
 
-@router.put("/activities/{activity_id}/members/{document_id}/record")
+@router.put("/{activity_id}/members/{document_id}/record")
 async def update_user_duration_v2(
     activity_id: str,
     document_id: str,
@@ -655,8 +655,8 @@ class UpdateActivityInfo(BaseModel):
     name: str
     description: str
 
-@router.put("/activities/{activity_id}/info")
-async def update_activity_name(payload: UpdateActivityInfo, activity_id: str, user=Depends(get_current_user)):
+@router.put("/{activity_id}/info")
+async def update_activity_info(payload: UpdateActivityInfo, activity_id: str, user=Depends(get_current_user)):
     """
     Update the name of an activity.
 

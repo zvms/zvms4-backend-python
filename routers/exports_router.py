@@ -3,7 +3,7 @@ from time import sleep
 from fastapi import APIRouter, HTTPException, Depends
 import tempfile
 from typings.export import ExportFormat, ExportTask, ExportStatus, ExportVariant
-from util.calculate import calculate_time
+from util.calculate import calculate_user_time
 from fastapi.responses import FileResponse
 from io import BytesIO
 from util.object_id import get_current_user, validate_object_id
@@ -36,20 +36,21 @@ async def process_task(task_id: str):
         users = await db.zvms.users.find({}).to_list(None)
         for idx, user in enumerate(users):
             if task["export_start"] is not None and task["export_start"] is not None:
-                user_time = await calculate_time(
+                user_time = await calculate_user_time(
                     str(user["_id"]),
-                    (task["export_start"].isoformat(), task["export_end"].isoformat()),
+                    datetime.fromisoformat(task["export_start"]),
+                    datetime.fromisoformat(task["export_end"]),
                 )
             else:
-                user_time = await calculate_time(str(user["_id"]))
-                more_on_campus = min(
-                    round(max(user_time["off-campus"] - 15, 1) / 2, 0), 6.0
-                )
-                more_off_campus = min(
-                    round(max(user_time["on-campus"] - 25, 1) / 3, 0), 6.0
-                )
-                user_time["on-campus"] += more_on_campus
-                user_time["off-campus"] += more_off_campus
+                user_time = await calculate_user_time(str(user["_id"]))
+            more_on_campus = min(
+                round(max(user_time["off-campus"] - 15, 1) / 2, 0), 6.0
+            )
+            more_off_campus = min(
+                round(max(user_time["on-campus"] - 25, 1) / 3, 0), 6.0
+            )
+            user_time["on-campus"] += more_on_campus
+            user_time["off-campus"] += more_off_campus
             group = await db.zvms.groups.find_one(
                 {
                     "_id": {

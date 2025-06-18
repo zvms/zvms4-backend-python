@@ -5,7 +5,7 @@ import pandas as pd
 import tempfile
 from tqdm import tqdm
 
-from util.calculate import calculate_time
+from util.calculate import calculate_user_time
 from util.get_class import get_classname, get_user_classname
 
 
@@ -64,7 +64,7 @@ async def calculate(
 ):
     result = []
     for user in tqdm(users):
-        time = await calculate_time(
+        time = await calculate_user_time(
             str(user["_id"]),
         )
         classname = await get_classname(user, groups)

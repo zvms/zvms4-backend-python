@@ -1,6 +1,7 @@
 import re
 from fastapi import APIRouter, Depends
 from database import db
+from util.calculate import calculate_user_time
 from util.object_id import get_current_user
 from collections import defaultdict
 from util.permission.user import validate_read_user_permission
@@ -122,30 +123,6 @@ async def get_user_time_v2(user_id: str, user=Depends(get_current_user)):
     """
     await validate_read_user_permission(user, user_id, "volunteer")
 
-    accepted_activities = (
-        await db.zvms_new.get_collection("activities")
-        .find({"status": "effective"})
-        .to_list(None)
-    )
-    accepted_activities = [str(activity["_id"]) for activity in accepted_activities]
-
-    collections = (
-        await db.zvms_new.get_collection("activity_members")
-        .find(
-            {
-                "member": user_id,
-                "status": "effective",
-                "activity": {"$in": accepted_activities},
-            }
-        )
-        .to_list(None)
-    )
-    result = defaultdict(float)
-    result["on-campus"] = 0
-    result["off-campus"] = 0
-    result["social-practice"] = 0
-    for m in collections:
-        result[m["mode"]] += m["duration"]
-    result = dict(result)
+    result = calculate_user_time(user)
 
     return result

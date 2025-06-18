@@ -8,7 +8,7 @@ from bcrypt import hashpw, gensalt
 from routers.activities_router import user_activity_signoff
 from typings.log import inject_log, ZVMSLog
 from typings.user import User
-from util.calculate import calculate_time
+from util.calculate import calculate_user_time
 from util.group import is_in_a_same_class
 from util.logify import binding_user_credentials
 from util.object_id import (
@@ -459,9 +459,9 @@ async def read_user_time(
         raise HTTPException(status_code=400, detail="Invalid query")
 
     if start is not None and end is not None:
-        result = await calculate_time(user_oid, (start, end))
+        result = await calculate_user_time(user_oid, datetime.fromisoformat(start), datetime.fromisoformat(end))
     else:
-        result = await calculate_time(user_oid)
+        result = await calculate_user_time(user_oid)
     return {
         "status": "ok",
         "code": 200,
