@@ -47,3 +47,5 @@ pytest-asyncio==0.25.3
 xlrd==2.0.2
 apscheduler==3.11.0
 tzlocal==5.3.1
+tqdm~=4.67.1
+scipy~=1.15.3

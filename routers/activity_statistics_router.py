@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from database import db
 import numpy as np
+from scipy.stats import mode
 
 router = APIRouter()
 
@@ -14,11 +15,10 @@ async def activity_issuance_description(activity_id: str):
     distribution = await db.zvms_new.get_collection('activity_members').find({'activity': activity_id}).to_list(None)
     if not distribution:
         return {"code": 404, "status": "not found", "data": None}
-    distribution = [item['duration'] for item in distribution]
-    distribution = np.array(distribution)
+    distribution = [float(item['duration']) for item in distribution]
+    distribution = np.array(distribution, dtype=np.float64)
     mean = np.mean(distribution).item()
-    median = np.median(distribution).item()
-    mode = float(np.bincount(distribution).argmax())
+    median = float(np.median(distribution))
     std_dev = np.std(distribution).item()
     min_val = np.min(distribution).item()
     max_val = np.max(distribution).item()
@@ -30,7 +30,7 @@ async def activity_issuance_description(activity_id: str):
     return {
         "mean": mean,
         "median": median,
-        "mode": mode,
+        "mode": mode(distribution).mode,
         "std": std_dev,
         "min": min_val,
         "max": max_val,
@@ -52,9 +52,10 @@ async def activity_issuance_layers(activity_id: str):
     if not distribution:
         return {"code": 404, "status": "not found", "data": None}
     distribution = [item['duration'] for item in distribution]
-    distribution = np.array(distribution)
+    distribution = np.array(distribution, dtype=np.float32)
 
     # Then we find different values, which indicates the layers
     unique_values = np.unique(distribution)
     layers = [{"value": float(value), "count": int(np.sum(distribution == value))} for value in unique_values]
-    return layers
+    layers.sort(key=lambda x: x["count"])
+    return layers[::-1]
