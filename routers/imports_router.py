@@ -1,17 +1,9 @@
 from io import BytesIO
-from bson import Binary
+from typing import Literal, cast
 
-from routers.activities_router import create_activity
-from typings.activity import (
-    Activity,
-    ActivityMember,
-    ActivityMode,
-    ActivityStatus,
-    ActivityType,
-    MemberActivityStatus,
-    SpecialActivityClassify,
-    Special,
-)
+from bson import Binary, ObjectId
+from routers.activities_v2_router import create_activity_v2
+from typings.activity_v2 import Activity, ActivityMember
 from fastapi import APIRouter, File, HTTPException, Depends, UploadFile
 import copy
 from typings.log import inject_log
@@ -54,9 +46,9 @@ async def upload_activity_excel(
 
     expected_columns = [
         "_id",
-        "ID",
         "Name",
-        "Class",
+        "ID",
+        "Group",
         "On Campus",
         "Off Campus",
         "Social Practice",
@@ -92,46 +84,54 @@ async def upload_activity_excel(
         df.fillna(0.0)
         accepted_modes = ["On Campus", "Off Campus", "Social Practice"]
 
+        log.with_text(f"User {await get_user_name(user['id'])} uploaded activity excel")
+        await log.insert_log()
+
         info = Activity(
             _id="",
-            type=ActivityType.special,
+            type="hybrid",
             name=name,
             description=desc,
-            members=[],
-            registration=None,
-            date=datetime.now().isoformat(),
-            createdAt=datetime.now().isoformat(),
-            updatedAt=datetime.now().isoformat(),
+            date=datetime.now(),
+            createdAt=datetime.now(),
+            updatedAt=datetime.now(),
             creator=user["id"],
-            status=ActivityStatus.effective,
-            special=Special(classify=SpecialActivityClassify.import_),
+            status="effective",
             approver="authority",
+            place="",
+            origin="import",
+            appointee=user["id"]
         )
+        info_append = info.model_dump()
+        inserted = await db.zvms_new.get_collection('activities').insert_one(info_append)
+        activity_id = inserted.inserted_id
 
         for mode in accepted_modes:
-            template = copy.deepcopy(info)
-            template.name += "\u2014" + mode
             for idx, row in df.iterrows():
                 if row[mode] != 0.0 and not pd.isna(row[mode]):
                     users = await db.zvms.users.find_one(
                         {"_id": validate_object_id(row["_id"])}
                     )
-                    if users is not None:
-                        template.members.append(
-                            ActivityMember(
-                                _id=row["_id"],
-                                id=row["_id"],
-                                status=MemberActivityStatus.effective,
-                                mode=ActivityMode(mode.replace(" ", "-").lower()),
-                                duration=row[mode],
-                            )
+                    record_mode = mode.lower().replace(" ", "-")
+                    if not record_mode in ["on-campus", "off-campus", "social-practice"]:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Invalid mode: {mode}. Expected one of {accepted_modes}.",
                         )
-            if len(template.members) != 0:
-                await create_activity(template, user=user, log=log)
+                    record_mode = cast(Literal["on-campus", "off-campus", "social-practice"], record_mode)
+                    if users is not None:
+                        member = ActivityMember(
+                            member=str(users['_id']),
+                            activity=str(activity_id),
+                            _id="",
+                            status="effective",
+                            mode=record_mode,
+                            duration=row[mode],
+                        )
+                        member_append = member.model_dump()
+                        await db.zvms_new.get_collection('activity_members').insert_one(member_append)
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-    log.with_text(f"User {await get_user_name(user['id'])} uploaded activity excel")
-    await log.insert_log()
 
     return {"status": "ok", "code": 201}

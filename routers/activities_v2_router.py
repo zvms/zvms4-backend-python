@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 from datetime import datetime
-from typing import Literal
+from typing import Literal, cast
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
@@ -165,7 +165,7 @@ async def delete_activity_v2(
     if not target_activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    await volunteer.validate_update_permission(user, target_activity)
+    await volunteer.validate_update_permission(user, Activity.model_validate(target_activity, strict=False))
 
     await db.zvms_new.get_collection("activity_members").delete_many(
         {"activity": str(activity_id)}
@@ -544,6 +544,8 @@ async def amalgamate_activities_v2(
     ) + "\n\nDescriptions:\n" + "\n".join(
         activity['description'] for activity in activities
     )
+    final_type = cast(Literal["on-campus", "off-campus", "social-practice", "hybrid"], final_type)
+    final_status = cast(Literal["effective", "pending", "refused"], final_status)
     new_activity = Activity(
         _id=str(ObjectId()),
         name=form.name,
@@ -596,3 +598,92 @@ async def amalgamate_activities_v2(
     db.zvms_new.get_collection('activities').delete_many({'_id': {"$in": [validate_object_id(activity['_id']) for activity in activities]}})
     await log.insert_log()
     return JSONResponse({'_id': str(result.inserted_id)}, status_code=201)
+
+class UpdateUserRecord(BaseModel):
+    duration: float
+    mode: Literal["on-campus", "off-campus", "social-practice"]
+
+@router.put("/activities/{activity_id}/members/{document_id}/record")
+async def update_user_duration_v2(
+    activity_id: str,
+    document_id: str,
+    updated: UpdateUserRecord,
+    user=Depends(get_current_user),
+):
+    """
+    Update the duration of a user's record in an activity.
+
+    :param activity_id: ID of the activity
+    :param document_id: ID of the activity member document
+    :param updated: UpdateUserRecord containing the new duration and mode
+    :param user: Current user
+    :return: Updated activity member document
+    """
+    target_activity = await db.zvms_new.get_collection("activities").find_one(
+        {"_id": validate_object_id(activity_id)}
+    )
+
+    if not target_activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    target_member = await db.zvms_new.get_collection("activity_members").find_one(
+        {
+            "_id": validate_object_id(document_id),
+            "activity": str(activity_id),
+        }
+    )
+
+    if not target_member:
+        raise HTTPException(status_code=404, detail="Activity member not found")
+
+    await volunteer_member.validate_update_permission(user)
+
+    updated_data = updated.model_dump()
+    updated_data["duration"] = float(updated_data["duration"])
+
+    result = await db.zvms_new.get_collection("activity_members").update_one(
+        {"_id": validate_object_id(document_id)},
+        {"$set": updated_data},
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Activity member not found")
+
+    return JSONResponse({"detail": "Activity member updated successfully"})
+
+class UpdateActivityInfo(BaseModel):
+    name: str
+    description: str
+
+@router.put("/activities/{activity_id}/info")
+async def update_activity_name(payload: UpdateActivityInfo, activity_id: str, user=Depends(get_current_user)):
+    """
+    Update the name of an activity.
+
+    :param payload: UpdateActivityInfo containing the new name and description
+    :param activity_id: ID of the activity to be updated
+    :param user: Current user
+    :return: Updated activity document
+    """
+    target_activity = await db.zvms_new.get_collection("activities").find_one(
+        {"_id": validate_object_id(activity_id)}
+    )
+
+    if not target_activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    await volunteer.validate_update_permission(user, Activity.model_validate(target_activity, strict=False))
+
+    validated, reason = validate_activity_name(payload.name)
+    if not validated:
+        raise HTTPException(status_code=400, detail=reason)
+
+    result = await db.zvms_new.get_collection("activities").update_one(
+        {"_id": validate_object_id(activity_id)},
+        {"$set": {"name": payload.name, "description": payload.description}},
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Activity not found")
+
+    return JSONResponse({"detail": "Activity name updated successfully"})

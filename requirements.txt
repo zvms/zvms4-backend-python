@@ -44,3 +44,4 @@ python-socketio==5.11.4
 pytest==8.3.5
 httpx==0.27.0
 pytest-asyncio==0.25.3
+xlrd==2.0.2

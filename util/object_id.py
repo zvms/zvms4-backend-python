@@ -105,7 +105,7 @@ async def get_current_user(
         user = {
             "id": oid,
             "perm": upgrade_user_positions(payload.get("per", None)),
-            "per": upgrade_user_positions(payload.get("per", None)),
+            "per": payload.get("per", None),
             "scope": payload.get("scope", None),
         }
         if user is None:

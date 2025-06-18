@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from config import MAX_QUERY_COUNT
 from database import db
 from util.object_id import get_current_user
 
@@ -18,6 +19,9 @@ async def read_logs(
 ):
     if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
+
+    if len(query) > MAX_QUERY_COUNT:
+        raise HTTPException(status_code=400, detail="Query too long")
 
     query: dict[str, Any] = (
         {}
