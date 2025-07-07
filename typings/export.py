@@ -60,3 +60,4 @@ class ExportTask(BaseModel):
     percentage: float = 0
     errmsg: str = ""
     result: Optional[list[dict]]
+    allow_cache: bool = True

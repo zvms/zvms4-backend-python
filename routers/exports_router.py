@@ -188,6 +188,7 @@ async def export_users(
 async def export_time(
     properties: CreateExport,
     background_tasks: BackgroundTasks,
+    allow_cache: bool=False,
     user=Depends(get_current_user),
 ):
     if "admin" not in user["per"]:
@@ -207,6 +208,7 @@ async def export_time(
         task_start=datetime.now(),
         task_end=None,
         result=[],
+        allow_cache=allow_cache,
     )
     document = task.model_dump()
     document["variant"] = ExportVariant.time.value
