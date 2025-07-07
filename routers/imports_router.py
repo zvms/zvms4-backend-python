@@ -1,11 +1,9 @@
 from io import BytesIO
 from typing import Literal, cast
 
-from bson import Binary, ObjectId
-from routers.activities_v2_router import create_activity_v2
+from bson import Binary
 from typings.activity_v2 import Activity, ActivityMember
 from fastapi import APIRouter, File, HTTPException, Depends, UploadFile
-import copy
 from typings.log import inject_log
 from util.user import get_user_name
 from util.object_id import get_current_user
@@ -100,10 +98,12 @@ async def upload_activity_excel(
             approver="authority",
             place="",
             origin="import",
-            appointee=user["id"]
+            appointee=user["id"],
         )
         info_append = info.model_dump()
-        inserted = await db.zvms_new.get_collection('activities').insert_one(info_append)
+        inserted = await db.zvms_new.get_collection("activities").insert_one(
+            info_append
+        )
         activity_id = inserted.inserted_id
 
         for mode in accepted_modes:
@@ -113,15 +113,22 @@ async def upload_activity_excel(
                         {"_id": validate_object_id(row["_id"])}
                     )
                     record_mode = mode.lower().replace(" ", "-")
-                    if not record_mode in ["on-campus", "off-campus", "social-practice"]:
+                    if record_mode not in [
+                        "on-campus",
+                        "off-campus",
+                        "social-practice",
+                    ]:
                         raise HTTPException(
                             status_code=400,
                             detail=f"Invalid mode: {mode}. Expected one of {accepted_modes}.",
                         )
-                    record_mode = cast(Literal["on-campus", "off-campus", "social-practice"], record_mode)
+                    record_mode = cast(
+                        Literal["on-campus", "off-campus", "social-practice"],
+                        record_mode,
+                    )
                     if users is not None:
                         member = ActivityMember(
-                            member=str(users['_id']),
+                            member=str(users["_id"]),
                             activity=str(activity_id),
                             _id="",
                             status="effective",
@@ -129,7 +136,9 @@ async def upload_activity_excel(
                             duration=row[mode],
                         )
                         member_append = member.model_dump()
-                        await db.zvms_new.get_collection('activity_members').insert_one(member_append)
+                        await db.zvms_new.get_collection("activity_members").insert_one(
+                            member_append
+                        )
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

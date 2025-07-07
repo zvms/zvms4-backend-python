@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends
 from database import db
 from util.calculate import calculate_user_time
 from util.object_id import get_current_user
-from collections import defaultdict
 from util.permission.user import validate_read_user_permission
 
 router = APIRouter()
@@ -112,17 +111,20 @@ async def get_user_activities_v2(
 
 
 @router.get("/{user_id}/time")
-async def get_user_time_v2(user_id: str, user=Depends(get_current_user)):
+async def get_user_time_v2(
+    user_id: str, user=Depends(get_current_user), allow_cache: bool = True
+):
     """
     Get user time
 
     :param user_id: User ID
     :param user: Current user
+    :param allow_cache: If True, do not use cached data
 
     :return: User time
     """
     await validate_read_user_permission(user, user_id, "volunteer")
 
-    result = await calculate_user_time(user_id)
+    result = await calculate_user_time(user_id, allow_cache=allow_cache)
 
     return result

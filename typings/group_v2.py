@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Literal, List
 from typings.user_v2 import UserPosition
 

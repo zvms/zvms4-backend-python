@@ -22,7 +22,6 @@ from database import db
 from util.cert import get_hashed_password_by_cert, validate_by_cert
 from util.user import get_user_name
 from util.validation import (
-    validate_past_identity,
     validate_number,
     validate_student_name,
 )
@@ -459,7 +458,9 @@ async def read_user_time(
         raise HTTPException(status_code=400, detail="Invalid query")
 
     if start is not None and end is not None:
-        result = await calculate_user_time(user_oid, datetime.fromisoformat(start), datetime.fromisoformat(end))
+        result = await calculate_user_time(
+            user_oid, datetime.fromisoformat(start), datetime.fromisoformat(end)
+        )
     else:
         result = await calculate_user_time(user_oid)
     return {

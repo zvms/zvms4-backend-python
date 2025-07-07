@@ -1,5 +1,4 @@
 from enum import Enum
-from bson import ObjectId
 from pydantic import BaseModel, Field
 from typings.activity import ActivityMode
 

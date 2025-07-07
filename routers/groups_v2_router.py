@@ -14,6 +14,7 @@ from config import (
     BASE_SOCIAL_PRACTICE,
 )
 from database import db
+from util.calculate import calculate_user_time
 from util.object_id import get_current_user
 from util.permission.user import validate_read_group_permission
 
@@ -306,4 +307,81 @@ async def get_group_users_v2(
         "page": page,
         "perpage": perpage,
         "members": members,
+    }
+
+
+@router.get("/{group_id}/statistics/compliance")
+async def stat_group_compliance(
+    group_id: str,
+    # user=Depends(get_current_user),
+):
+    """
+    Get group compliance statistics
+    :param group_id: Group ID
+    :param user: Current user
+    """
+
+    # await validate_read_group_permission(user, group_id, "volunteer")
+
+    # Get members from the group
+    members = (
+        await db.zvms.get_collection("users")
+        .find({"group": group_id})  # TODO should be `groups` in the new structure
+        .to_list(None)
+    )
+
+    members = [str(member["_id"]) for member in members]
+
+    member_time_counts = []
+
+    on_campus = defaultdict(int)
+    off_campus = defaultdict(int)
+    social_practice = defaultdict(int)
+
+    # Percentage of compliance, 0%–20%, 20%–40%, 40%–60%, 60%–80%, 80%–100%, completed.
+
+    for member in members:
+        user_time = await calculate_user_time(member, allow_cache=True)
+        on_campus_range = min(
+            int(user_time["on-campus"] / BASE_ON_CAMPUS * 100 // 20), 5
+        )
+        off_campus_range = min(
+            int(user_time["off-campus"] / BASE_OFF_CAMPUS * 100 // 20), 5
+        )
+        social_practice_range = min(
+            int(user_time["social-practice"] / BASE_SOCIAL_PRACTICE * 100 // 20), 5
+        )
+        on_campus[on_campus_range] += 1
+        off_campus[off_campus_range] += 1
+        social_practice[social_practice_range] += 1
+
+    def convert_key_name(key: int) -> str:
+        if key == 5:
+            return "Completed"
+        return f"{key * 20}%–{(key + 1) * 20}%"
+
+    # Sort each category by its values (member counts)
+    sorted_on_campus = dict(
+        sorted(
+            {convert_key_name(k): v for k, v in on_campus.items()}.items(),
+            key=lambda item: item[0],
+        )
+    )
+    sorted_off_campus = dict(
+        sorted(
+            {convert_key_name(k): v for k, v in off_campus.items()}.items(),
+            key=lambda item: item[0],
+        )
+    )
+    sorted_social_practice = dict(
+        sorted(
+            {convert_key_name(k): v for k, v in social_practice.items()}.items(),
+            key=lambda item: item[0],
+        )
+    )
+
+    return {
+        "on-campus": sorted_on_campus,
+        "off-campus": sorted_off_campus,
+        "social-practice": sorted_social_practice,
     }

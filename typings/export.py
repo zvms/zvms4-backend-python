@@ -3,8 +3,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pandas import DataFrame
-from pydantic import BaseModel, field_validator, ConfigDict
+from pydantic import BaseModel
 
 
 class ExportStatus(str, Enum):

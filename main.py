@@ -1,4 +1,4 @@
-from fastapi import Request, Response, FastAPI
+from fastapi import Request, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from pymongo.errors import OperationFailure
@@ -12,7 +12,9 @@ from routers import (
     logs_router,
     activities_v2_router,
     users_v2_router,
-    groups_v2_router, activity_statistics_router,
+    groups_v2_router,
+    activity_statistics_router,
+    times_router,
 )
 from database import close_mongo_connection, connect_to_mongo
 import socketio
@@ -20,6 +22,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import db
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
+from tasks.compute_time import compute_time
+
 
 scheduler = AsyncIOScheduler()
 sio = socketio.AsyncServer(async_mode="asgi")
@@ -59,22 +63,37 @@ async def mark_all_tasks_failed():
         {"$set": {"status": "failed", "errmsg": "Program interrupted unexpectedly"}},
     )
 
+
 async def startup_event():
     """Startup event handler to initialize the application."""
     print("Starting up...")
     await connect_to_mongo()
     scheduler.start()
+
+    # Schedule compute_time to run daily at 00:00 HKT (UTC+8)
+    scheduler.add_job(
+        compute_time,
+        "cron",
+        hour=0,
+        minute=0,
+        second=0,
+        timezone="Asia/Hong_Kong",
+        id="daily_compute_time",
+    )
+
     print("Application started.")
     signal.signal(signal.SIGINT, lambda s, f: asyncio.create_task(shutdown_event()))
     signal.signal(signal.SIGTERM, lambda s, f: asyncio.create_task(shutdown_event()))
 
+
 async def shutdown_event():
     """Shutdown event handler to clean up resources."""
     print("Shutting down...")
-    await close_mongo_connection()
     await mark_all_tasks_failed()
     scheduler.shutdown()
+    await close_mongo_connection()
     print("Application shut down.")
+
 
 # Register events
 app.add_event_handler("startup", startup_event)
@@ -93,7 +112,10 @@ app.include_router(logs_router.router, prefix="/api/logs", tags=["logs"])
 app.include_router(activities_v2_router.router, prefix="/api/v2/activities")
 app.include_router(users_v2_router.router, prefix="/api/v2/users")
 app.include_router(groups_v2_router.router, prefix="/api/v2/groups")
-app.include_router(activity_statistics_router.router, prefix="/api/v2/statistics/activities")
+app.include_router(times_router.router, prefix="/api/v2/times")
+app.include_router(
+    activity_statistics_router.router, prefix="/api/v2/statistics/activities"
+)
 
 
 @app.router.get("/api/")

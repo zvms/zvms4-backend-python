@@ -18,6 +18,7 @@ class CreateExport(BaseModel):
     start: str = ""
     end: str = ""
     format: ExportFormat
+    allow_cache: bool = True
 
 
 router = APIRouter()
@@ -42,7 +43,9 @@ async def process_task(task_id: str):
                     task["export_end"],
                 )
             else:
-                user_time = await calculate_user_time(str(user["_id"]))
+                user_time = await calculate_user_time(
+                    str(user["_id"]), allow_cache=task["allow_cache"]
+                )
             more_on_campus = min(
                 round(max(user_time["off-campus"] - 15, 1) / 2, 0), 6.0
             )

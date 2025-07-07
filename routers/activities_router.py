@@ -184,9 +184,6 @@ async def read_activities(
     if len(target_types) == 0:
         target_types = ["specified", "social", "scale", "special"]
 
-        # Read activities
-    result = []
-
     audit = "admin" in user["per"]
 
     pipeline = [

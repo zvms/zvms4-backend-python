@@ -165,7 +165,9 @@ async def delete_activity_v2(
     if not target_activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    await volunteer.validate_update_permission(user, Activity.model_validate(target_activity, strict=False))
+    await volunteer.validate_update_permission(
+        user, Activity.model_validate(target_activity, strict=False)
+    )
 
     await db.zvms_new.get_collection("activity_members").delete_many(
         {"activity": str(activity_id)}
@@ -443,7 +445,7 @@ class AmalgamationForm(BaseModel):
 
     activities: list[str]
     name: str
-    description: str=''
+    description: str = ""
     origin: Literal[
         "labor",
         "organization",
@@ -456,13 +458,15 @@ class AmalgamationForm(BaseModel):
         "prize",
         "other",
     ]
-    duplicated: Literal["max", "sum"]="max"
-    proceedPending: bool=False
+    duplicated: Literal["max", "sum"] = "max"
+    proceedPending: bool = False
 
 
 @router.post("/amalgamation")
 async def amalgamate_activities_v2(
-    form: AmalgamationForm, user=Depends(compulsory_temporary_token), log=Depends(inject_log)
+    form: AmalgamationForm,
+    user=Depends(compulsory_temporary_token),
+    log=Depends(inject_log),
 ):
     """
     Amalgamate multiple activities into one.
@@ -499,7 +503,7 @@ async def amalgamate_activities_v2(
 
     # Validate all activities are effective or pending
     activities = [
-        {'_id': str(obj['_id']), **obj}
+        {"_id": str(obj["_id"]), **obj}
         for obj in await db.zvms_new.get_collection("activities")
         .find(pipeline)
         .to_list(None)
@@ -509,42 +513,46 @@ async def amalgamate_activities_v2(
 
     if not activities:
         raise HTTPException(status_code=404, detail="No activities found")
-    if any(activity['status'] == "refused" for activity in activities):
+    if any(activity["status"] == "refused" for activity in activities):
         raise HTTPException(
             status_code=400, detail="Cannot amalgamate refused activities"
         )
-    if not all(activity['status'] in ["effective", "pending"] for activity in activities):
+    if not all(
+        activity["status"] in ["effective", "pending"] for activity in activities
+    ):
         raise HTTPException(
             status_code=400, detail="All activities must be effective or pending"
         )
-    if all(activity['status'] == "effective" for activity in activities):
+    if all(activity["status"] == "effective" for activity in activities):
         final_status = "effective"
 
-    final_appointee = set(activity['appointee'] for activity in activities)
+    final_appointee = set(activity["appointee"] for activity in activities)
     if len(final_appointee) == 1:
         final_appointee = final_appointee.pop()
     else:
         final_appointee = str(user["id"])
     final_approver = (
         "authority"
-        if any(activity['approver'] == "authority" for activity in activities)
+        if any(activity["approver"] == "authority" for activity in activities)
         else str(user["id"])
     )
     final_type = (
         "hybrid"
-        if any(activity['type'] == "hybrid" for activity in activities)
+        if any(activity["type"] == "hybrid" for activity in activities)
         else (
-            activities[0]['type']
-            if all(activity['type'] == activities[0]['type'] for activity in activities)
+            activities[0]["type"]
+            if all(activity["type"] == activities[0]["type"] for activity in activities)
             else "hybrid"
         )
     )
     final_description = form.description or "Merged from " " and ".join(
-        activity['name'] for activity in activities
+        activity["name"] for activity in activities
     ) + "\n\nDescriptions:\n" + "\n".join(
-        activity['description'] for activity in activities
+        activity["description"] for activity in activities
     )
-    final_type = cast(Literal["on-campus", "off-campus", "social-practice", "hybrid"], final_type)
+    final_type = cast(
+        Literal["on-campus", "off-campus", "social-practice", "hybrid"], final_type
+    )
     final_status = cast(Literal["effective", "pending", "refused"], final_status)
     new_activity = Activity(
         _id=str(ObjectId()),
@@ -564,16 +572,17 @@ async def amalgamate_activities_v2(
     new_activity = new_activity.model_dump()
     result = await db.zvms_new.get_collection("activities").insert_one(new_activity)
     new_id = str(result.inserted_id)
-    log_text = (
-        f'User {await get_user_name(user["id"])} amalgamated activities {", ".join(form.activities)} into activity {form.name} at {datetime.now().isoformat()}. The ID of the new activity is {new_id}.'
+    log_text = f'User {await get_user_name(user["id"])} amalgamated activities {", ".join(form.activities)} into activity {form.name} at {datetime.now().isoformat()}. The ID of the new activity is {new_id}.'
+    await db.zvms_new.get_collection("activity_members").update_many(
+        {"activity": {"$in": [str(activity["_id"]) for activity in activities]}},
+        {"$set": {"activity": new_id}},
     )
-    await db.zvms_new.get_collection('activity_members').update_many({
-        "activity": {"$in": [str(activity['_id']) for activity in activities]}
-    }, {"$set": {"activity": new_id}})
     # Then checkout duplicated members
     # Step 1: Group documents by (mode, activity, member)
     grouped = defaultdict(list)
-    for doc in (await db.zvms_new.get_collection("activity_members").find().to_list(None)):
+    for doc in (
+        await db.zvms_new.get_collection("activity_members").find().to_list(None)
+    ):
         key = (doc["mode"], doc["activity"], doc["member"])
         grouped[key].append(doc)
 
@@ -592,16 +601,28 @@ async def amalgamate_activities_v2(
         # Keep the first doc, delete others
         keep_doc = docs[0]
         other_ids = [d["_id"] for d in docs[1:]]
-        db.zvms_new.get_collection('activity_members').delete_many({"_id": {"$in": other_ids}})
-        db.zvms_new.get_collection('activity_members').update_one({"_id": keep_doc["_id"]}, {"$set": {"duration": new_duration}})
+        db.zvms_new.get_collection("activity_members").delete_many(
+            {"_id": {"$in": other_ids}}
+        )
+        db.zvms_new.get_collection("activity_members").update_one(
+            {"_id": keep_doc["_id"]}, {"$set": {"duration": new_duration}}
+        )
     log.with_text(log_text)
-    db.zvms_new.get_collection('activities').delete_many({'_id': {"$in": [validate_object_id(activity['_id']) for activity in activities]}})
+    db.zvms_new.get_collection("activities").delete_many(
+        {
+            "_id": {
+                "$in": [validate_object_id(activity["_id"]) for activity in activities]
+            }
+        }
+    )
     await log.insert_log()
-    return JSONResponse({'_id': str(result.inserted_id)}, status_code=201)
+    return JSONResponse({"_id": str(result.inserted_id)}, status_code=201)
+
 
 class UpdateUserRecord(BaseModel):
     duration: float
     mode: Literal["on-campus", "off-campus", "social-practice"]
+
 
 @router.put("/{activity_id}/members/{document_id}/record")
 async def update_user_duration_v2(
@@ -651,12 +672,16 @@ async def update_user_duration_v2(
 
     return JSONResponse({"detail": "Activity member updated successfully"})
 
+
 class UpdateActivityInfo(BaseModel):
     name: str
     description: str
 
+
 @router.put("/{activity_id}/info")
-async def update_activity_info(payload: UpdateActivityInfo, activity_id: str, user=Depends(get_current_user)):
+async def update_activity_info(
+    payload: UpdateActivityInfo, activity_id: str, user=Depends(get_current_user)
+):
     """
     Update the name of an activity.
 
@@ -672,7 +697,9 @@ async def update_activity_info(payload: UpdateActivityInfo, activity_id: str, us
     if not target_activity:
         raise HTTPException(status_code=404, detail="Activity not found")
 
-    await volunteer.validate_update_permission(user, Activity.model_validate(target_activity, strict=False))
+    await volunteer.validate_update_permission(
+        user, Activity.model_validate(target_activity, strict=False)
+    )
 
     validated, reason = validate_activity_name(payload.name)
     if not validated:

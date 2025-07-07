@@ -30,7 +30,7 @@ async def create_group(payload: Group, user=Depends(get_current_user)):
     Create a user group
     """
 
-    if not "admin" in user["per"]:
+    if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     group = payload.model_dump()
@@ -132,7 +132,7 @@ async def update_group_name(
     Update group name
     """
 
-    if not "admin" in user["per"]:
+    if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     await db.zvms.groups.update_one(
@@ -171,9 +171,9 @@ async def get_class_activities(
         raise HTTPException(status_code=404, detail="User not found")
     if (
         "admin" not in user["per"]
-        and not "auditor" in user["per"]
-        and not "department" in user["per"]
-        and (not "secretary" in user["per"] and not same_class)
+        and "auditor" not in user["per"]
+        and "department" not in user["per"]
+        and ("secretary" not in user["per"] and not same_class)
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     result, count = await get_activities_related_to_user(
@@ -211,9 +211,9 @@ async def get_users_in_class(
         raise HTTPException(status_code=404, detail="User not found")
     if (
         "admin" not in user["per"]
-        and not "auditor" in user["per"]
-        and not "department" in user["per"]
-        and (not "secretary" in user["per"] and not same_class)
+        and "auditor" not in user["per"]
+        and "department" not in user["per"]
+        and ("secretary" not in user["per"] and not same_class)
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     count = await db.zvms.users.count_documents(
@@ -245,6 +245,7 @@ async def get_user_times_in_class(
     start: Optional[str] = None,
     end: Optional[str] = None,
     search: str = "",
+    allow_cache: bool = True,
     user=Depends(get_current_user),
 ):
     """
@@ -262,9 +263,9 @@ async def get_user_times_in_class(
         raise HTTPException(status_code=404, detail="User not found")
     if (
         "admin" not in user["per"]
-        and not "auditor" in user["per"]
-        and not "department" in user["per"]
-        and (not "secretary" in user["per"] and not same_class)
+        and "auditor" not in user["per"]
+        and "department" not in user["per"]
+        and ("secretary" not in user["per"] and not same_class)
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     count = await db.zvms.users.count_documents(
@@ -279,7 +280,9 @@ async def get_user_times_in_class(
     result = await db.zvms.users.aggregate(pipeline).to_list(None)
     time = []
     for user in result:
-        user_time = await calculate_user_time(str(user["_id"]), start, end)
+        user_time = await calculate_user_time(
+            str(user["_id"]), start, end, allow_cache=allow_cache
+        )
         if exceeding or shortage:
             more_on_campus = min(
                 round(max(user_time["off-campus"] - 15, 1) / 2, 0), 6.0
@@ -326,7 +329,7 @@ async def update_group_description(
     Update group description
     """
 
-    if not "admin" in user["per"]:
+    if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     await db.zvms.groups.update_one(
@@ -345,7 +348,7 @@ async def delete_group(group_id: str, user=Depends(compulsory_temporary_token)):
     Remove group
     """
 
-    if not "admin" in user["per"]:
+    if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     await db.zvms.groups.delete_one({"_id": ObjectId(group_id)})
@@ -372,9 +375,9 @@ async def get_group_template(
         raise HTTPException(status_code=404, detail="User not found")
     if (
         "admin" not in user["per"]
-        and not "auditor" in user["per"]
-        and not "department" in user["per"]
-        and (not "secretary" in user["per"] and not same_class)
+        and "auditor" not in user["per"]
+        and "department" not in user["per"]
+        and ("secretary" not in user["per"] and not same_class)
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 

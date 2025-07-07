@@ -8,5 +8,5 @@ async def get_user_name(id: str):
             {"_id": validate_object_id(id)}, {"name": True}
         )
         return user["name"]
-    except Exception as e:
+    except Exception:
         return "Unknown"

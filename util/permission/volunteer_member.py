@@ -1,4 +1,4 @@
-from typings.activity_v2 import ActivityMember, Activity
+from typings.activity_v2 import Activity
 from typings.user import User
 from util.get_class import get_user_class
 

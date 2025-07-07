@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from bson import ObjectId
 import pandas as pd
-from typings.activity import Activity as ActivityV1, ActivityMember as ActivityMemberV1
+from typings.activity import Activity as ActivityV1
 from typings.activity_v2 import (
     Activity as ActivityV2,
     ActivityMember as ActivityMemberV2,
@@ -72,7 +72,7 @@ def convert_activity(
         date=datetime.fromisoformat(activity.date),
         createdAt=datetime.fromisoformat(activity.createdAt),
         updatedAt=datetime.fromtimestamp(float(activity.updatedAt))
-        if type(activity.updatedAt) == float
+        if isinstance(activity.updatedAt, float)
         else datetime.fromisoformat(activity.updatedAt),
         appointee=activity.creator,
         approver=activity.approver,

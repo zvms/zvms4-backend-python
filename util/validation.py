@@ -104,7 +104,7 @@ def validate_past_identity(identity: str):
     """
 
     number, numbermsg = validate_number(identity)
-    if number == True:
+    if number:
         return True, ""
     else:
         return False, numbermsg

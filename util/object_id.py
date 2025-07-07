@@ -1,10 +1,10 @@
+from bson.errors import InvalidId
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from h11 import Data
 from urllib.parse import urlencode, urlparse
 
 from conversion.groups import trans_permissions
-from typings.user import User, UserPosition as UserPositionV1
+from typings.user import UserPosition as UserPositionV1
 from typings.user_v2 import UserPosition as UserPositionV2
 import jwt
 from typing import Optional
@@ -34,7 +34,7 @@ def validate_object_id(id: str):
 def string_to_option_object_id(id: str):
     try:
         _id = ObjectId(id)
-    except:
+    except InvalidId:
         return None
     return _id
 

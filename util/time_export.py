@@ -6,7 +6,7 @@ import tempfile
 from tqdm import tqdm
 
 from util.calculate import calculate_user_time
-from util.get_class import get_classname, get_user_classname
+from util.get_class import get_classname
 
 
 def json2dataframe(data: list[dict]):

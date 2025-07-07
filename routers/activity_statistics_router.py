@@ -5,6 +5,7 @@ from scipy.stats import mode
 
 router = APIRouter()
 
+
 @router.get("/{activity_id}/description")
 async def activity_issuance_description(activity_id: str):
     """
@@ -12,10 +13,14 @@ async def activity_issuance_description(activity_id: str):
     It consists: mean, median, mode, standard deviation, min, max, and variance.
     :param activity_id: The ID of the activity
     """
-    distribution = await db.zvms_new.get_collection('activity_members').find({'activity': activity_id}).to_list(None)
+    distribution = (
+        await db.zvms_new.get_collection("activity_members")
+        .find({"activity": activity_id})
+        .to_list(None)
+    )
     if not distribution:
         return {"code": 404, "status": "not found", "data": None}
-    distribution = [float(item['duration']) for item in distribution]
+    distribution = [float(item["duration"]) for item in distribution]
     distribution = np.array(distribution, dtype=np.float64)
     mean = np.mean(distribution).item()
     median = float(np.median(distribution))
@@ -41,21 +46,33 @@ async def activity_issuance_description(activity_id: str):
         "total": total,
     }
 
+
 @router.get("/{activity_id}/layers")
 async def activity_issuance_layers(activity_id: str):
     """
     Get the layers of an activity by its ID.
     :param activity_id: The ID of the activity
     """
-    layers = await db.zvms_new.get_collection('activity_members').find({'activity': activity_id}).to_list(None)
-    distribution = await db.zvms_new.get_collection('activity_members').find({'activity': activity_id}).to_list(None)
+    layers = (
+        await db.zvms_new.get_collection("activity_members")
+        .find({"activity": activity_id})
+        .to_list(None)
+    )
+    distribution = (
+        await db.zvms_new.get_collection("activity_members")
+        .find({"activity": activity_id})
+        .to_list(None)
+    )
     if not distribution:
         return {"code": 404, "status": "not found", "data": None}
-    distribution = [item['duration'] for item in distribution]
+    distribution = [item["duration"] for item in distribution]
     distribution = np.array(distribution, dtype=np.float32)
 
     # Then we find different values, which indicates the layers
     unique_values = np.unique(distribution)
-    layers = [{"value": float(value), "count": int(np.sum(distribution == value))} for value in unique_values]
+    layers = [
+        {"value": float(value), "count": int(np.sum(distribution == value))}
+        for value in unique_values
+    ]
     layers.sort(key=lambda x: x["count"])
     return layers[::-1]
