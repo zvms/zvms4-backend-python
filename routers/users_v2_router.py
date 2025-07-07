@@ -123,6 +123,6 @@ async def get_user_time_v2(user_id: str, user=Depends(get_current_user)):
     """
     await validate_read_user_permission(user, user_id, "volunteer")
 
-    result = await calculate_user_time(user['id'])
+    result = await calculate_user_time(user_id)
 
     return result
