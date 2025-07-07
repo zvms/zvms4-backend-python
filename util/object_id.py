@@ -50,7 +50,6 @@ async def get_user(oid: str):
     user = await db.zvms.users.find_one({"_id": validate_object_id(oid)})
     if user:
         return user
-    print(user)
     return None
 
 
@@ -61,7 +60,6 @@ async def compulsory_temporary_token(token: str = Depends(oauth2_scheme)):
 
 async def optional_current_user(token: str = Depends(oauth2_scheme)):
     result = await get_current_user(token, "long", False)
-    print(result)
     return result
 
 

@@ -312,8 +312,6 @@ async def add_activity_member_v2(
     :return: Activity object
     """
 
-    print(member)
-
     target_activity = await db.zvms_new.get_collection("activities").find_one(
         {"_id": validate_object_id(activity_id)}
     )

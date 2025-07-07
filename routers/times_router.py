@@ -1,8 +1,10 @@
 from typing import Optional
 from fastapi import Depends, APIRouter
+
+from typings.time import UserActivityTime
 from util.calculate import calculate_user_time
 from util.object_id import (
-    optional_current_user,
+    optional_current_user, validate_object_id,
 )
 from database import db
 
@@ -22,6 +24,11 @@ async def read_users(
     """
     Query users
     """
+    sortkey = {
+        "on-campus": "on_campus_raw",
+        "off-campus": "off_campus_raw",
+        "social-practice": "social_practice",
+    }
     count = await db.zvms.users.count_documents(
         {
             "$or": [
@@ -56,25 +63,29 @@ async def read_users(
                 "id": True,
                 "group": True,
             },
-        )
-        .sort(sort, 1 if asc else -1)
-        .skip(0 if page == -1 else (page - 1) * perpage)
-        .limit(perpage if page == -1 else perpage)
-        .to_list(0 if page == -1 else perpage)
+        ).to_list(None)
     )
+    selected_students = [str(user["_id"]) for user in result]
 
+    user_times = await db.zvms_new.get_collection("time").find(
+        {"user": {"$in": selected_students}}
+    ).sort({sortkey.get(sort, sort): -1 if not asc else 1}).skip((page - 1) * perpage).limit(perpage).to_list(None)
     results = []
 
-    for user in result:
-        user_time = await calculate_user_time(str(user["_id"]), allow_cache=allow_cache)
+    for user in user_times:
+        user_info = await db.zvms.get_collection('users').find_one(
+            {"_id": validate_object_id(user["user"])}
+        )
+        time_struct = UserActivityTime.model_validate(user, strict=False)
         results.append(
             {
-                "_id": str(user["_id"]),
-                "name": user["name"],
-                "id": user["id"],
-                "group": user["group"],
-                **user_time,
+                "_id": str(user["user"]),
+                "name": user_info["name"],
+                "id": user_info["id"],
+                "on-campus": time_struct.on_campus,
+                "off-campus": time_struct.off_campus,
+                "social-practice": time_struct.social_practice,
             }
         )
 
-    return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
+    return {"status": "ok", "code": 200, "data": results, "metadata": {"size": count}}
