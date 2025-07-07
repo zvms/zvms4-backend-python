@@ -38,8 +38,8 @@ async def process_task(task_id: str):
             if task["export_start"] is not None and task["export_start"] is not None:
                 user_time = await calculate_user_time(
                     str(user["_id"]),
-                    datetime.fromisoformat(task["export_start"]),
-                    datetime.fromisoformat(task["export_end"]),
+                    task["export_start"],
+                    task["export_end"],
                 )
             else:
                 user_time = await calculate_user_time(str(user["_id"]))
@@ -113,7 +113,7 @@ async def process_task(task_id: str):
                 "ID": str(user["id"]),
                 "Group": group["name"],
                 "On Campus": None,
-                "Off campus": None,
+                "Off Campus": None,
                 "Social Practice": None,
             }
             result.append(doc)
