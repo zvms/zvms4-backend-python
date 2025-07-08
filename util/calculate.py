@@ -59,6 +59,8 @@ async def calculate_user_time(
         result[m["mode"]] += m["duration"]
     result = dict(result)
 
+    await db.zvms_new.get_collection("time").delete_many({"user": user_id})
+
     await db.zvms_new.get_collection("time").update_one(
         {"user": user_id},
         {
