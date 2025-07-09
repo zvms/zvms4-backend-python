@@ -188,7 +188,7 @@ async def export_users(
 async def export_time(
     properties: CreateExport,
     background_tasks: BackgroundTasks,
-    allow_cache: bool=False,
+    allow_cache: bool = False,
     user=Depends(get_current_user),
 ):
     if "admin" not in user["per"]:

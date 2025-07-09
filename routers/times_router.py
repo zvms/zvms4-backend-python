@@ -4,7 +4,8 @@ from fastapi import Depends, APIRouter
 from typings.time import UserActivityTime
 from util.calculate import calculate_user_time
 from util.object_id import (
-    optional_current_user, validate_object_id,
+    optional_current_user,
+    validate_object_id,
 )
 from database import db
 
@@ -63,17 +64,23 @@ async def read_users(
                 "id": True,
                 "group": True,
             },
-        ).to_list(None)
+        )
+        .to_list(None)
     )
     selected_students = [str(user["_id"]) for user in result]
 
-    user_times = await db.zvms_new.get_collection("time").find(
-        {"user": {"$in": selected_students}}
-    ).sort({sortkey.get(sort, sort): -1 if not asc else 1}).skip((page - 1) * perpage).limit(perpage).to_list(None)
+    user_times = (
+        await db.zvms_new.get_collection("time")
+        .find({"user": {"$in": selected_students}})
+        .sort({sortkey.get(sort, sort): -1 if not asc else 1})
+        .skip((page - 1) * perpage)
+        .limit(perpage)
+        .to_list(None)
+    )
     results = []
 
     for user in user_times:
-        user_info = await db.zvms.get_collection('users').find_one(
+        user_info = await db.zvms.get_collection("users").find_one(
             {"_id": validate_object_id(user["user"])}
         )
         time_struct = UserActivityTime.model_validate(user, strict=False)

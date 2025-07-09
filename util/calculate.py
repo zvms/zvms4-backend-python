@@ -61,16 +61,21 @@ async def calculate_user_time(
 
     await db.zvms_new.get_collection("time").delete_many({"user": user_id})
 
-    await db.zvms_new.get_collection("time").update_one(
-        {"user": user_id},
+    await db.zvms_new.get_collection("time").insert_one(
         {
-            "$set": {
-                "on_campus_raw": result["on-campus"],
-                "off_campus_raw": result["off-campus"],
-                "social_practice": result["social-practice"],
-                "updated_at": datetime.now(),
-            }
+            "user": user_id,
+            "on_campus_raw": result["on-campus"],
+            "off_campus_raw": result["off-campus"],
+            "social_practice": result["social-practice"],
+            "updated_at": datetime.now(),
         },
     )
 
     return result
+
+
+def find_percentile_threshold(percentiles: dict[str, float], target: float):
+    for key, value in percentiles.items():
+        if target <= value:
+            return int(key.replace('%', ''))
+    return 100

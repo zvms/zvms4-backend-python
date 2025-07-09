@@ -1,17 +1,20 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from database import db
 import numpy as np
 from scipy.stats import mode
+
+from util.object_id import get_current_user
 
 router = APIRouter()
 
 
 @router.get("/{activity_id}/description")
-async def activity_issuance_description(activity_id: str):
+async def activity_issuance_description(activity_id: str, _=Depends(get_current_user)):
     """
     Get the data description of an activity by its ID.
     It consists: mean, median, mode, standard deviation, min, max, and variance.
     :param activity_id: The ID of the activity
+    :param _: Current user, used for authentication
     """
     distribution = (
         await db.zvms_new.get_collection("activity_members")
@@ -48,10 +51,11 @@ async def activity_issuance_description(activity_id: str):
 
 
 @router.get("/{activity_id}/layers")
-async def activity_issuance_layers(activity_id: str):
+async def activity_issuance_layers(activity_id: str, _=Depends(get_current_user)):
     """
     Get the layers of an activity by its ID.
     :param activity_id: The ID of the activity
+    :param _: Current user, used for authentication
     """
     layers = (
         await db.zvms_new.get_collection("activity_members")
@@ -76,3 +80,30 @@ async def activity_issuance_layers(activity_id: str):
     ]
     layers.sort(key=lambda x: x["count"])
     return layers[::-1]
+
+@router.get("/grades/{grade}/percentiles")
+async def get_time_percentiles(grade: str, _=Depends(get_current_user)):
+    """
+    Get the percentiles of time for a specific grade.
+    :param grade: The grade to get percentiles for
+    :param _: Current user, used for authentication
+    """
+    if await db.zvms_new.get_collection("indicators").find({}).count() == 0:
+        # If there are no indicators, return an empty dictionary
+        return {}
+    result = await db.zvms_new.get_collection("indicators").find({}).to_list(1)[0]
+    return result['percentiles'][grade]
+
+
+@router.get("/grades/{grade}/indicators")
+async def get_time_indicators(grade: str, _=Depends(get_current_user)):
+    """
+    Get the statistical indicators of time for a specific grade.
+    :param grade: The grade to get indicators for
+    :param _: Current user, used for authentication
+    """
+    if await db.zvms_new.get_collection("indicators").find({}).count() == 0:
+        # If there are no indicators, return an empty dictionary
+        return {}
+    result = await db.zvms_new.get_collection("indicators").find({}).to_list(1)[0]
+    return result['indicators'][grade]
