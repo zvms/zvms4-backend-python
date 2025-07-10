@@ -14,8 +14,10 @@ from config import (
     BASE_SOCIAL_PRACTICE,
 )
 from database import db
+from typings.time import UserActivityTime
 from util.calculate import calculate_user_time
-from util.object_id import get_current_user
+from util.get_class import get_user_class
+from util.object_id import get_current_user, validate_object_id
 from util.permission.user import validate_read_group_permission
 
 router = APIRouter()
@@ -116,132 +118,84 @@ async def get_group_activities_v2(
 
 
 @router.get("/{group_id}/time")
-async def get_group_time_v2(
+async def read_users(
     group_id: str,
+    query: str = "",
     page: int = 1,
-    perpage: int = 10,
-    search: str = "",
+    perpage: int = 5,
+    allow_cache: bool = True,
     sort: str = "id",
-    regex: bool = True,
     asc: bool = True,
-    exceeding: bool = True,
-    shortage: bool = False,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-    user=Depends(get_current_user),
+    user: Optional[str] = Depends(get_current_user),
 ):
     """
-    Get group time
-    :param group_id: Group ID
-    :param page: The page number
-    :param perpage: Items per page
-    :param search: Search keyword
-    :param sort: Sort by field
-    :param regex: Use regex for search
-    :param asc: Sort in ascending order
-    :param user: Current user
-    :param exceeding: Exceeding time
-    :param shortage: Shortage time
-    :param start: Start date
-    :param end: End date
+    Query users
     """
-
-    await validate_read_group_permission(user, group_id, "volunteer")
-
-    # Get members from the group
-    members = (
-        await db.zvms.get_collection("users")
-        .aggregate(
-            [
-                {
-                    "$match": {
-                        "group": group_id  # TODO should be `groups` in the new structure
-                    }
-                },
-                {"$sort": {sort: 1 if asc else -1}},
-                {"$skip": (page - 1) * perpage},
-                {"$limit": perpage},
-            ]
-        )
-        .to_list(None)
-    )
-
-    count = await db.zvms.get_collection("users").count_documents(
+    sortkey = {
+        "on-campus": "on_campus_raw",
+        "off-campus": "off_campus_raw",
+        "social-practice": "social_practice",
+    }
+    count = await db.zvms.users.count_documents(
         {
-            "group": group_id  # TODO should be `groups` in the new structure
+            "$or": [
+                {"name": {"$regex": query, "$options": "i"}},
+                {"id": {"$regex": query, "$options": "i"}},
+                {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}},
+            ],
+            "group": group_id,
         }
     )
-
-    date_filter = {}
-
-    if start and end:
-        date_filter["date"] = {
-            "$gte": start,
-            "$lte": end,
-        }
-
-    filtered_activities = (
-        await db.zvms_new.get_collection("activities")
-        .find({"status": "effective", **date_filter})
+    result = (
+        await db.zvms["users"]
+        .find(
+            {
+                "$or": [
+                    {"name": {"$regex": query, "$options": "i"}},
+                    {"id": {"$regex": query, "$options": "i"}},
+                    {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}},
+                ],
+                "group": group_id,
+            },
+            {
+                "name": True,
+                "id": True,
+                "group": True,
+            },
+        )
         .to_list(None)
     )
+    if sort == "id":
+        result = sorted(result, key=lambda x: x["id"], reverse=not asc)
+    selected_students = [str(user["_id"]) for user in result]
 
-    filtered_activities = [str(activity["_id"]) for activity in filtered_activities]
+    user_times = (
+        await db.zvms_new.get_collection("time")
+        .find({"user": {"$in": selected_students}})
+        .sort({sortkey.get(sort, sort): -1 if not asc else 1} if sort else None)
+        .skip((page - 1) * perpage)
+        .limit(perpage)
+        .to_list(None)
+    )
+    results = []
 
-    times = []
-    for member in members:
-        collections = (
-            await db.zvms_new.get_collection("activity_members")
-            .find(
-                {
-                    "member": str(member["_id"]),
-                    "status": "effective",
-                    "activity": {"$in": filtered_activities},
-                }
-            )
-            .to_list(None)
+    for user in user_times:
+        user_info = await db.zvms.get_collection("users").find_one(
+            {"_id": validate_object_id(user["user"])}
         )
-        result = defaultdict(float)
-        result["on-campus"] = 0
-        result["off-campus"] = 0
-        result["social-practice"] = 0
-        for m in collections:
-            result[m["mode"]] += m["duration"]
-        result = dict(result)
-        if exceeding:
-            more_on_campus = min(
-                round(
-                    max(result["off-campus"] - BASE_OFF_CAMPUS, 1) * OFF_TO_ON_RATE, 0
-                ),
-                MAX_EXCEED_DISCOUNT,
-            )
-            more_off_campus = min(
-                round(max(result["on-campus"] - BASE_ON_CAMPUS, 1) * ON_TO_OFF_RATE, 0),
-                MAX_EXCEED_DISCOUNT,
-            )
-            result["on-campus"] += more_on_campus
-            result["off-campus"] += more_off_campus
-        if shortage:
-            result["on-campus"] = max(BASE_ON_CAMPUS - result["on-campus"], 0)
-            result["off-campus"] = max(BASE_OFF_CAMPUS - result["off-campus"], 0)
-            result["social-practice"] = max(
-                BASE_SOCIAL_PRACTICE - result["social-practice"], 0
-            )
-        times.append(
+        time_struct = UserActivityTime.model_validate(user, strict=False)
+        results.append(
             {
-                "_id": str(member["_id"]),
-                "name": member["name"],
-                "id": member["id"],
-                **result,
+                "_id": str(user["user"]),
+                "name": user_info["name"],
+                "id": user_info["id"],
+                "on-campus": time_struct.on_campus,
+                "off-campus": time_struct.off_campus,
+                "social-practice": time_struct.social_practice,
             }
         )
 
-    return {
-        "total": count,
-        "page": page,
-        "perpage": perpage,
-        "members": times,
-    }
+    return {"status": "ok", "code": 200, "data": results, "metadata": {"size": count}}
 
 
 @router.get("/{group_id}/users")

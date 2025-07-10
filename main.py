@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import db
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
-from tasks.compute_time import compute_time, compute_indicators
+from tasks.compute_time import compute_tasks
 
 scheduler = AsyncIOScheduler()
 sio = socketio.AsyncServer(async_mode="asgi")
@@ -71,24 +71,13 @@ async def startup_event():
 
     # Schedule compute_time to run daily at 00:00 HKT (UTC+8)
     scheduler.add_job(
-        compute_time,
+        compute_tasks,
         "cron",
         hour=0,
         minute=0,
         second=0,
         timezone="Asia/Hong_Kong",
         id="daily_compute_time",
-    )
-    # Every day at 04:00 HKT (UTC+8) to compute indicators, including those statistical indicators and percentiles
-    # (every 5 percentile)
-    scheduler.add_job(
-        compute_indicators,
-        "cron",
-        hour=4,
-        minute=0,
-        second=0,
-        timezone="Asia/Hong_Kong",
-        id="daily_compute_indicators",
     )
 
     print("Application started.")

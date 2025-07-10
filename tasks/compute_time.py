@@ -28,6 +28,29 @@ async def compute_time():
         await calculate_user_time(user_id, allow_cache=False)
 
 
+async def compute_ay_time():
+    await db.zvms_new.get_collection("time").delete_many({})
+    users = await db.zvms.get_collection("users").find({}).to_list(None)
+    now = datetime.now()
+    ay = now.year if now.month >= 8 else now.year - 1
+    soy = datetime.now().replace(month=8, day=1, year=ay, hour=0, minute=0, second=0, microsecond=0)
+    eoy = datetime.now().replace(month=7, day=31, year=ay + 1, hour=23, minute=59, second=59, microsecond=999999)
+    for user in users:
+        user_id = str(user["_id"])
+        entry = user_id[:4]
+        result = await calculate_user_time(user_id, date_start=soy, date_end=eoy, allow_cache=False)
+        await db.zvms_new.get_collection("time_academic_year").delete_many({"user": user_id})
+        await db.zvms_new.get_collection("time_academic_year").insert_one({
+            "user": user_id,
+            "entry": entry,
+            "academic_year": ay,
+            "start_of_year": soy,
+            "end_of_year": eoy,
+            **result
+        })
+
+
+
 def describe_percentile(items: np.ndarray, step: int, bound: float) -> dict[str, float]:
     """
     Calculate percentiles for a given array of items.
@@ -66,6 +89,7 @@ def describe_statistical_indicators(items: np.ndarray) -> dict[str, float]:
         "sum": np.sum(items).item(),
     }
 
+
 def process_time_data(time_df: pd.DataFrame) -> pd.DataFrame:
     """
     Process the time data DataFrame to calculate on-campus, off-campus, and social practice time.
@@ -75,15 +99,25 @@ def process_time_data(time_df: pd.DataFrame) -> pd.DataFrame:
     """
     time_df.fillna(0, inplace=True)
     time_df["on-campus"] = time_df["on_campus_raw"] + np.round(
-        ((time_df["off_campus_raw"] - BASE_OFF_CAMPUS).clip(lower=0) * OFF_TO_ON_RATE).clip(upper=MAX_EXCEED_DISCOUNT), 1
+        (
+            (time_df["off_campus_raw"] - BASE_OFF_CAMPUS).clip(lower=0) * OFF_TO_ON_RATE
+        ).clip(lower=0, upper=MAX_EXCEED_DISCOUNT),
+        1,
     )
     time_df["off-campus"] = time_df["off_campus_raw"] + np.round(
-        ((time_df["on_campus_raw"] - BASE_ON_CAMPUS).clip(lower=0) * ON_TO_OFF_RATE).clip(upper=MAX_EXCEED_DISCOUNT), 1
+        (
+            (time_df["on_campus_raw"] - BASE_ON_CAMPUS).clip(lower=0) * ON_TO_OFF_RATE
+        ).clip(lower=0, upper=MAX_EXCEED_DISCOUNT),
+        1,
     )
     time_df["social-practice"] = time_df["social_practice"]
+    time_df["diff"] = BASE_ON_CAMPUS + BASE_OFF_CAMPUS + BASE_SOCIAL_PRACTICE - time_df['on-campus'] - time_df['off-campus'] - time_df['social-practice']
     return time_df
 
-def describe_df_percentile(df: pd.DataFrame, columns: list[str], step: int, bounds: list[float]) -> dict[str, dict[str, float]]:
+
+def describe_df_percentile(
+    df: pd.DataFrame, columns: list[str], step: int, bounds: list[float]
+) -> dict[str, dict[str, float]]:
     """
     Calculate percentiles for a specific column in a DataFrame.
 
@@ -102,7 +136,10 @@ def describe_df_percentile(df: pd.DataFrame, columns: list[str], step: int, boun
         result[column] = percentiles
     return result
 
-def describe_df_statistical_indicators(df: pd.DataFrame, columns: list[str]) -> dict[str, dict[str, float]]:
+
+def describe_df_statistical_indicators(
+    df: pd.DataFrame, columns: list[str]
+) -> dict[str, dict[str, float]]:
     """
     Calculate statistical indicators for specific columns in a DataFrame.
 
@@ -119,22 +156,27 @@ def describe_df_statistical_indicators(df: pd.DataFrame, columns: list[str]) -> 
         result[column] = indicators
     return result
 
+
 async def compute_group_indicators():
     """
     This function computes group indicators based on the time data of users.
     """
 
-    groups = await db.zvms.get_collection("groups").find({
-        "type": "class"
-    }).to_list(None)
+    groups = (
+        await db.zvms.get_collection("groups").find({"type": "class"}).to_list(None)
+    )
 
     for group in groups:
-        users = await db.zvms.get_collection("users").find({
-            "group": str(group["_id"])
-        }).to_list(None)
-        time_graph = await db.zvms_new.get_collection("time").find({
-            "user": {"$in": [str(user["_id"]) for user in users]}
-        }).to_list(None)
+        users = (
+            await db.zvms.get_collection("users")
+            .find({"group": str(group["_id"])})
+            .to_list(None)
+        )
+        time_graph = (
+            await db.zvms_new.get_collection("time")
+            .find({"user": {"$in": [str(user["_id"]) for user in users]}})
+            .to_list(None)
+        )
         time_df = pd.DataFrame(time_graph)
         df = process_time_data(time_df)
         if df.empty:
@@ -149,13 +191,17 @@ async def compute_group_indicators():
         indicators = describe_df_statistical_indicators(
             df, ["on-campus", "off-campus", "social-practice"]
         )
-        await db.zvms_new.get_collection("group_indicators").delete_many({"group": str(group["_id"])})
-        await db.zvms_new.get_collection("group_indicators").insert_one({
-            "group": str(group["_id"]),
-            "percentiles": percentiles,
-            "indicators": indicators,
-            "updated_at": datetime.now(),
-        })
+        await db.zvms_new.get_collection("group_indicators").delete_many(
+            {"group": str(group["_id"])}
+        )
+        await db.zvms_new.get_collection("group_indicators").insert_one(
+            {
+                "group": str(group["_id"]),
+                "percentiles": percentiles,
+                "indicators": indicators,
+                "updated_at": datetime.now(),
+            }
+        )
 
 
 async def compute_indicators():
@@ -206,8 +252,17 @@ async def compute_indicators():
 
     await db.zvms_new.get_collection("indicators").delete_many({})
 
-    await db.zvms_new.get_collection("indicators").insert_one({
-        "percentiles": percentiles,
-        "indicators": indicators,
-        "updated_at": datetime.now(),
-    })
+    await db.zvms_new.get_collection("indicators").insert_one(
+        {
+            "percentiles": percentiles,
+            "indicators": indicators,
+            "updated_at": datetime.now(),
+        }
+    )
+
+
+async def compute_tasks():
+    await compute_time()
+    await compute_ay_time()
+    await compute_indicators()
+    await compute_group_indicators()

@@ -5,7 +5,7 @@ from typings.time import UserActivityTime
 from util.calculate import calculate_user_time
 from util.object_id import (
     optional_current_user,
-    validate_object_id,
+    validate_object_id, get_current_user,
 )
 from database import db
 
@@ -13,14 +13,13 @@ router = APIRouter()
 
 
 @router.get("")
-async def read_users(
+async def read_times(
     query: str = "",
     page: int = 1,
     perpage: int = 5,
-    allow_cache: bool = True,
     sort: str = "id",
     asc: bool = True,
-    user: Optional[str] = Depends(optional_current_user),
+    user = Depends(get_current_user),
 ):
     """
     Query users
@@ -60,6 +59,7 @@ async def read_users(
                 ],
             },
             {
+                "_id": True,
                 "name": True,
                 "id": True,
                 "group": True,
@@ -67,12 +67,14 @@ async def read_users(
         )
         .to_list(None)
     )
+    if sort == "id":
+        result = sorted(result, key=lambda x: x["id"], reverse=not asc)
     selected_students = [str(user["_id"]) for user in result]
 
     user_times = (
         await db.zvms_new.get_collection("time")
         .find({"user": {"$in": selected_students}})
-        .sort({sortkey.get(sort, sort): -1 if not asc else 1})
+        .sort({sortkey.get(sort, sort): -1 if not asc else 1} if sort else None)
         .skip((page - 1) * perpage)
         .limit(perpage)
         .to_list(None)

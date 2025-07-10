@@ -25,15 +25,15 @@ class UserActivityTime(BaseModel):
 
     @property
     def on_campus(self) -> float:
-        return self.on_campus_raw + max(
-            min((self.off_campus_raw - BASE_OFF_CAMPUS), 0) * OFF_TO_ON_RATE,
+        return self.on_campus_raw + min(
+            max((self.off_campus_raw - BASE_OFF_CAMPUS), 0) * OFF_TO_ON_RATE,
             MAX_EXCEED_DISCOUNT,
         )
 
     @property
     def off_campus(self) -> float:
-        return self.off_campus_raw + max(
-            min((self.on_campus_raw - BASE_ON_CAMPUS), 0) * ON_TO_OFF_RATE,
+        return self.off_campus_raw + min(
+            max((self.on_campus_raw - BASE_ON_CAMPUS), 0) * ON_TO_OFF_RATE,
             MAX_EXCEED_DISCOUNT,
         )
 

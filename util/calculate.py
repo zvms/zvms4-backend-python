@@ -77,5 +77,5 @@ async def calculate_user_time(
 def find_percentile_threshold(percentiles: dict[str, float], target: float):
     for key, value in percentiles.items():
         if target <= value:
-            return int(key.replace('%', ''))
+            return int(key.replace("%", ""))
     return 100

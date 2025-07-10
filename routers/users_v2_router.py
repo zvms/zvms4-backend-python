@@ -131,9 +131,10 @@ async def get_user_time_v2(
 
     return result
 
+
 @router.get("/{user_id}/time_statistics")
 async def get_user_time_statistics_v2(
-    user_id: str#, user=Depends(get_current_user)
+    user_id: str,  # , user=Depends(get_current_user)
 ):
     """
     Get user time statistics, particularly `percentiles`.
@@ -144,14 +145,18 @@ async def get_user_time_statistics_v2(
     :return: User time statistics
     """
     group_id = await get_user_class(user_id)
-    group_indicators = await db.zvms_new.get_collection("group_indicators").find_one({"group": str(group_id)})
-    indicators = (await db.zvms_new.get_collection("indicators").find({}).to_list(None))
+    group_indicators = await db.zvms_new.get_collection("group_indicators").find_one(
+        {"group": str(group_id)}
+    )
+    indicators = await db.zvms_new.get_collection("indicators").find({}).to_list(None)
     if len(indicators) == 0 or group_indicators is None:
-        raise HTTPException(status_code=400, detail="Function temporarily unaccessible.")
+        raise HTTPException(
+            status_code=400, detail="Function temporarily unaccessible."
+        )
     user_document = await db.zvms.users.find_one({"_id": validate_object_id(user_id)})
-    grade_indicators = indicators[0]['percentiles'][user_document["id"][:4]]
+    grade_indicators = indicators[0]["percentiles"][user_document["id"][:4]]
     user_time = await calculate_user_time(user_id, allow_cache=True)
-    group_indicators = group_indicators['percentiles']
+    group_indicators = group_indicators["percentiles"]
     return {
         "on-campus": {
             "value": user_time["on-campus"],

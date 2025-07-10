@@ -81,6 +81,7 @@ async def activity_issuance_layers(activity_id: str, _=Depends(get_current_user)
     layers.sort(key=lambda x: x["count"])
     return layers[::-1]
 
+
 @router.get("/grades/{grade}/percentiles")
 async def get_time_percentiles(grade: str, _=Depends(get_current_user)):
     """
@@ -92,7 +93,7 @@ async def get_time_percentiles(grade: str, _=Depends(get_current_user)):
         # If there are no indicators, return an empty dictionary
         return {}
     result = await db.zvms_new.get_collection("indicators").find({}).to_list(1)[0]
-    return result['percentiles'][grade]
+    return result["percentiles"][grade]
 
 
 @router.get("/grades/{grade}/indicators")
@@ -106,4 +107,4 @@ async def get_time_indicators(grade: str, _=Depends(get_current_user)):
         # If there are no indicators, return an empty dictionary
         return {}
     result = await db.zvms_new.get_collection("indicators").find({}).to_list(1)[0]
-    return result['indicators'][grade]
+    return result["indicators"][grade]
