@@ -161,28 +161,28 @@ async def get_user_time_statistics_v2(
         "on-campus": {
             "value": user_time["on-campus"],
             "group": find_percentile_threshold(
-                group_indicators["on-campus"], user_time["on-campus"]
+                group_indicators["on-campus"], user_time["on-campus"], "on-campus"
             ),
             "grade": find_percentile_threshold(
-                grade_indicators["on-campus"], user_time["on-campus"]
+                grade_indicators["on-campus"], user_time["on-campus"], "on-campus"
             ),
         },
         "off-campus": {
             "value": user_time["off-campus"],
             "group": find_percentile_threshold(
-                group_indicators["off-campus"], user_time["off-campus"]
+                group_indicators["off-campus"], user_time["off-campus"], "off-campus"
             ),
             "grade": find_percentile_threshold(
-                grade_indicators["off-campus"], user_time["off-campus"]
+                grade_indicators["off-campus"], user_time["off-campus"], "off-campus"
             ),
         },
         "social-practice": {
             "value": user_time["social-practice"],
             "group": find_percentile_threshold(
-                group_indicators["social-practice"], user_time["social-practice"]
+                group_indicators["social-practice"], user_time["social-practice"], "social-practice"
             ),
             "grade": find_percentile_threshold(
-                grade_indicators["social-practice"], user_time["social-practice"]
+                grade_indicators["social-practice"], user_time["social-practice"], "social-practice"
             ),
         },
     }
