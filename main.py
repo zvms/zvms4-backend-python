@@ -23,6 +23,7 @@ from database import db
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
 from tasks.compute_time import compute_tasks
+from tasks.data_fix import wash_data
 
 scheduler = AsyncIOScheduler()
 sio = socketio.AsyncServer(async_mode="asgi")
@@ -79,6 +80,18 @@ async def startup_event():
         timezone="Asia/Hong_Kong",
         id="daily_compute_time",
     )
+
+    # Schedule compute_time to run daily at 00:00 HKT (UTC+8)
+    scheduler.add_job(
+        wash_data,
+        "cron",
+        hour=4,
+        minute=0,
+        second=0,
+        timezone="Asia/Hong_Kong",
+        id="daily_compute_time",
+    )
+
 
     print("Application started.")
     signal.signal(signal.SIGINT, lambda s, f: asyncio.create_task(shutdown_event()))
