@@ -114,7 +114,7 @@ async def get_user_activities_v2(
 
 @router.get("/{user_id}/time")
 async def get_user_time_v2(
-    user_id: str, user=Depends(get_current_user), allow_cache: bool = True
+    user_id: str, user=Depends(get_current_user), allow_cache: bool = False
 ):
     """
     Get user time
