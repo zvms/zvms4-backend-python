@@ -29,7 +29,7 @@ async def compute_time():
 
 
 async def compute_ay_time():
-    await db.zvms_new.get_collection("time").delete_many({})
+    await db.zvms_new.get_collection("time_academic_year").delete_many({})
     users = await db.zvms.get_collection("users").find({}).to_list(None)
     now = datetime.now()
     ay = now.year if now.month >= 8 else now.year - 1
@@ -48,7 +48,6 @@ async def compute_ay_time():
             "end_of_year": eoy,
             **result
         })
-
 
 
 def describe_percentile(items: np.ndarray, step: int, bound: float) -> dict[str, float]:

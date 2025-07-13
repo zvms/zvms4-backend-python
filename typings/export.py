@@ -61,3 +61,4 @@ class ExportTask(BaseModel):
     errmsg: str = ""
     result: Optional[list[dict]]
     allow_cache: bool = True
+    include_description: bool = False

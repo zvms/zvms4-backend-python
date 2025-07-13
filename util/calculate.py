@@ -4,6 +4,8 @@ from typing import Any
 
 from config import BASE_ON_CAMPUS, BASE_OFF_CAMPUS, BASE_SOCIAL_PRACTICE
 from database import db
+from settings import LANGUAGE
+from utils import validate_object_id
 
 
 async def calculate_user_time(
@@ -11,6 +13,7 @@ async def calculate_user_time(
     date_start: datetime | None = None,
     date_end: datetime | None = None,
     allow_cache: bool = True,
+    attach_description: bool = False,
 ):
     """
     Get user time
@@ -19,10 +22,12 @@ async def calculate_user_time(
     :param date_start: Start date for filtering activities
     :param date_end: End date for filtering activities
     :param allow_cache: If True, do not use cached data
+    :param attach_description: If True, attach description to the result
 
     :return: User time
     """
-    if (not allow_cache) and date_start is None and date_end is None:
+    print(f"Calculating time for user {user_id} with date range {date_start} to {date_end}, allow_cache={allow_cache}, attach_description={attach_description}")
+    if allow_cache and date_start is None and date_end is None:
         db_data = await db.zvms_new.get_collection("time").find_one({"user": user_id})
         if db_data:
             return {
@@ -52,6 +57,33 @@ async def calculate_user_time(
         )
         .to_list(None)
     )
+    description = ''
+    if attach_description:
+        desc = []
+        for collection in collections:
+            activity = await db.zvms_new.get_collection("activities").find_one(
+                {"_id": validate_object_id(collection["activity"])}
+            )
+            if LANGUAGE == 'zh-CN':
+                modes = {
+                    'on-campus': '校内',
+                    'off-campus': '校外',
+                    'social-practice': '社会实践',
+                }
+                desc.append(f"{activity['name']}（{activity['date'].strftime('%Y-%m-%d')}），{modes.get(collection['mode'], "未知")} {collection['duration']} 小时")
+            else:
+                desc.append(
+                    f"{activity['name']} (at {activity['date'].strftime('%Y-%m-%d')}), {collection['mode']} {collection['duration']} hours")
+        if LANGUAGE == 'zh-CN':
+            description = "；".join(desc)
+        elif len(desc) == 0:
+            description = "No activities found"
+        elif len(desc) == 1:
+            description = desc[0]
+        elif len(desc) == 2:
+            description = " and ".join(desc)
+        else:
+            description = ", ".join(desc[:-1]) + " and " + desc[-1]
     result = defaultdict(float)
     result["on-campus"] = 0
     result["off-campus"] = 0
@@ -59,6 +91,8 @@ async def calculate_user_time(
     for m in collections:
         result[m["mode"]] += m["duration"]
     result = dict(result)
+    if attach_description:
+        result["description"] = description
 
     await db.zvms_new.get_collection("time").delete_many({"user": user_id})
 

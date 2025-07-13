@@ -1,7 +1,9 @@
 import uuid
 from time import sleep
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 import tempfile
+
+from config import BASE_ON_CAMPUS, ON_TO_OFF_RATE, MAX_EXCEED_DISCOUNT, BASE_OFF_CAMPUS, OFF_TO_ON_RATE
 from typings.export import ExportFormat, ExportTask, ExportStatus, ExportVariant
 from util.calculate import calculate_user_time
 from fastapi.responses import FileResponse
@@ -18,7 +20,8 @@ class CreateExport(BaseModel):
     start: str = ""
     end: str = ""
     format: ExportFormat
-    allow_cache: bool = True
+    allow_cache: bool = False
+    include_description: bool = False
 
 
 router = APIRouter()
@@ -32,6 +35,7 @@ async def process_task(task_id: str):
         {"id": uuid.UUID(task_id)},
         {"$set": {"status": ExportStatus.processing, "task_start": datetime.now()}},
     )
+    include_description = task.get("include_description", False)
     if task["variant"] == "time":
         result = []
         users = await db.zvms.users.find({}).to_list(None)
@@ -41,16 +45,18 @@ async def process_task(task_id: str):
                     str(user["_id"]),
                     task["export_start"],
                     task["export_end"],
+                    attach_description=include_description,
                 )
             else:
                 user_time = await calculate_user_time(
-                    str(user["_id"]), allow_cache=task["allow_cache"]
+                    str(user["_id"]), allow_cache=task["allow_cache"],
+                    attach_description=include_description,
                 )
             more_on_campus = min(
-                round(max(user_time["off-campus"] - 15, 1) / 2, 0), 6.0
+                round(max(user_time["off-campus"] - BASE_OFF_CAMPUS, 1) * OFF_TO_ON_RATE, 0), MAX_EXCEED_DISCOUNT
             )
             more_off_campus = min(
-                round(max(user_time["on-campus"] - 25, 1) / 3, 0), 6.0
+                round(max(user_time["on-campus"] - BASE_ON_CAMPUS, 1) * ON_TO_OFF_RATE, 0), MAX_EXCEED_DISCOUNT
             )
             user_time["on-campus"] += more_on_campus
             user_time["off-campus"] += more_off_campus
@@ -72,6 +78,7 @@ async def process_task(task_id: str):
                 "On Campus": user_time["on-campus"],
                 "Off Campus": user_time["off-campus"],
                 "Social Practice": user_time["social-practice"],
+                "Description": "" if not include_description else user_time.get("description", ""),
             }
             result.append(doc)
             task["percentage"] = (idx + 1) / len(users) * 100
@@ -188,7 +195,6 @@ async def export_users(
 async def export_time(
     properties: CreateExport,
     background_tasks: BackgroundTasks,
-    allow_cache: bool = False,
     user=Depends(get_current_user),
 ):
     if "admin" not in user["per"]:
@@ -208,7 +214,8 @@ async def export_time(
         task_start=datetime.now(),
         task_end=None,
         result=[],
-        allow_cache=allow_cache,
+        allow_cache=properties.allow_cache,
+        include_description=properties.include_description,
     )
     document = task.model_dump()
     document["variant"] = ExportVariant.time.value
@@ -230,7 +237,7 @@ async def get_export(task_id: str):
 
 
 @router.get("/{task_id}/file")
-async def get_export_file(task_id: str):
+async def get_export_file(task_id: str, language: str = "en"):
     task = await db.zvms.tasks.find_one({"id": uuid.UUID(task_id)})
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -241,6 +248,17 @@ async def get_export_file(task_id: str):
         suffix=f'.{ExportFormat(task['format']).suffix()}', delete=False
     ) as tmp:
         result = pd.DataFrame(task["result"]).sort_values("_id")
+        if language == "zh-CN":
+            result.rename(columns={
+                "_id": "数据库 ID",
+                "Name": "姓名",
+                "ID": "学号",
+                "Group": "班级",
+                "On Campus": "校内义工时长",
+                "Off Campus": "校外义工时长",
+                "Social Practice": "社会实践时长",
+                "Description": "描述",
+            }, inplace=True)
         if task["format"] == "excel":
             result.to_excel(tmp.name, index=False)
         elif task["format"] == "csv":
