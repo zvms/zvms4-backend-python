@@ -74,7 +74,7 @@ async def startup_event():
     scheduler.add_job(
         compute_tasks,
         "cron",
-        hour=0,
+        hour=1,
         minute=0,
         second=0,
         timezone="Asia/Hong_Kong",
@@ -89,7 +89,7 @@ async def startup_event():
         minute=0,
         second=0,
         timezone="Asia/Hong_Kong",
-        id="daily_compute_time",
+        id="daily_wash_data",
     )
 
     # Schedule compute_time to run daily at 00:00 HKT (UTC+8)
