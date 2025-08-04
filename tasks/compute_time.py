@@ -1,6 +1,7 @@
+import os
 from collections import defaultdict
 from typing import cast
-
+import tarfile
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -14,6 +15,7 @@ from config import (
 )
 from database import db
 from util.calculate import calculate_user_time
+from util.statement import create_statement_from_kernel_data
 
 
 async def compute_time():
@@ -32,7 +34,7 @@ async def compute_ay_time():
     await db.zvms_new.get_collection("time_academic_year").delete_many({})
     users = await db.zvms.get_collection("users").find({}).to_list(None)
     now = datetime.now()
-    ay = now.year if now.month >= 8 else now.year - 1
+    ay = now.year if now.month >= 9 else now.year - 1
     soy = datetime.now().replace(month=8, day=1, year=ay, hour=0, minute=0, second=0, microsecond=0)
     eoy = datetime.now().replace(month=7, day=31, year=ay + 1, hour=23, minute=59, second=59, microsecond=999999)
     for user in users:
@@ -48,6 +50,36 @@ async def compute_ay_time():
             "end_of_year": eoy,
             **result
         })
+
+async def generate_reports():
+    classes = await db.zvms.get_collection("groups").find({"type": "class"}).to_list(None)
+    if not os.path.exists('./export'):
+        os.makedirs('./export')
+    else:
+        for item in os.listdir('./export'):
+            item_path = os.path.join('./export', item)
+            if os.path.isdir(item_path):
+                for file in os.listdir(item_path):
+                    file_path = os.path.join(item_path, file)
+                    if file.endswith('.pdf'):
+                        os.remove(file_path)
+                os.rmdir(item_path)
+    for class_id in classes:
+        users = await db.zvms.get_collection("users").find({"group": str(class_id["_id"])}).to_list(None)
+        os.makedirs(f'./export/{class_id["name"]}', exist_ok=True)
+        for user in users:
+            user_id = str(user["id"])
+            entry = int(user_id[:4])
+            soy = datetime.now().replace(month=8, day=1, year=entry, hour=0, minute=0, second=0, microsecond=0)
+            eoy = datetime.now().replace(month=7, day=31, year=entry + 3, hour=23, minute=59, second=59, microsecond=999999)
+            await create_statement_from_kernel_data(str(user['_id']), (soy, eoy), filename=f'./export/{class_id['name']}/{user['id']}_{user["name"]}.pdf', language='zh')
+            print(f"Exported statement for {user['name']} in class {class_id['name']}.")
+        print(f"Exported statements for class {class_id['name']}.")
+    # Create a tar.gz archive of the export directory
+    if os.path.exists('./data/export.tar.gz'):
+        os.remove('./data/export.tar.gz')
+    with tarfile.open('./data/export.tar.gz', 'w:gz') as tar:
+        tar.add('./export', arcname='export')
 
 
 def describe_percentile(items: np.ndarray, step: int, bound: float) -> dict[str, float]:

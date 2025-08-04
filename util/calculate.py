@@ -94,17 +94,18 @@ async def calculate_user_time(
     if attach_description:
         result["description"] = description
 
-    await db.zvms_new.get_collection("time").delete_many({"user": user_id})
+    if not allow_cache and date_start is None and date_end is None:
+        await db.zvms_new.get_collection("time").delete_many({"user": user_id})
 
-    await db.zvms_new.get_collection("time").insert_one(
-        {
-            "user": user_id,
-            "on_campus_raw": result["on-campus"],
-            "off_campus_raw": result["off-campus"],
-            "social_practice": result["social-practice"],
-            "updated_at": datetime.now(),
-        },
-    )
+        await db.zvms_new.get_collection("time").insert_one(
+            {
+                "user": user_id,
+                "on_campus_raw": result["on-campus"],
+                "off_campus_raw": result["off-campus"],
+                "social_practice": result["social-practice"],
+                "updated_at": datetime.now(),
+            },
+        )
 
     return result
 

@@ -1,3 +1,4 @@
+import os
 import uuid
 from time import sleep
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -8,7 +9,9 @@ from typings.export import ExportFormat, ExportTask, ExportStatus, ExportVariant
 from util.calculate import calculate_user_time
 from fastapi.responses import FileResponse
 from io import BytesIO
-from util.object_id import get_current_user, validate_object_id
+import base64
+import json
+from util.object_id import get_current_user, validate_object_id, compulsory_temporary_token
 from datetime import datetime
 from database import db
 import pandas as pd
@@ -22,6 +25,8 @@ class CreateExport(BaseModel):
     format: ExportFormat
     allow_cache: bool = False
     include_description: bool = False
+
+tokens = []
 
 
 router = APIRouter()
@@ -234,6 +239,55 @@ async def get_export(task_id: str):
     del task["result"]
     task["_id"] = str(task["_id"])
     return {"code": 200, "status": "ok", "data": task}
+
+@router.post("/reports")
+async def request_download_reports(
+    user=Depends(compulsory_temporary_token),
+):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    global tokens
+    token_data = {
+        'token': uuid.uuid4().hex,
+        'granted_to': user['id'],
+        'expires_at': datetime.now().timestamp() + 300  # 5 minutes
+    }
+    token_data_encoded = base64.b64encode(json.dumps(token_data).encode()).decode()
+    tokens.append(token_data)
+    return token_data_encoded
+
+@router.get("/reports/download")
+async def download_reports(
+    request: Request,
+    token: str,
+):
+    global tokens
+    try:
+        token_data = json.loads(base64.b64decode(token).decode())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid token format")
+
+    if not any(t['token'] == token_data['token'] for t in tokens):
+        raise HTTPException(status_code=403, detail="Invalid or expired token")
+
+    if datetime.now().timestamp() > token_data['expires_at']:
+        raise HTTPException(status_code=403, detail="Token expired")
+
+    # Remove the token after use
+    tokens = [t for t in tokens if t['token'] != token_data['token']]
+
+    # response to `export.tar.gz`, which is a tar.gz file containing all reports and already exists in the server
+    file_path = "./data/export.tar.gz"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(
+        file_path,
+        media_type="application/gzip",
+        filename="export.tar.gz",
+        headers={
+            "Content-Disposition": "attachment; filename=export.tar.gz"
+        }
+    )
 
 
 @router.get("/{task_id}/file")
