@@ -5,7 +5,8 @@ from typings.time import UserActivityTime
 from util.calculate import calculate_user_time
 from util.object_id import (
     optional_current_user,
-    validate_object_id, get_current_user,
+    validate_object_id,
+    get_current_user,
 )
 from database import db
 
@@ -19,7 +20,7 @@ async def read_times(
     perpage: int = 5,
     sort: str = "id",
     asc: bool = True,
-    user = Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """
     Query users

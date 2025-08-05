@@ -15,7 +15,8 @@ from config import (
 )
 from database import db
 from util.calculate import calculate_user_time
-from util.statement import create_statement_from_kernel_data
+from util.statement import create_statement_from_kernel_data, TRANSLATIONS
+from utils import validate_object_id
 
 
 async def compute_time():
@@ -35,51 +36,111 @@ async def compute_ay_time():
     users = await db.zvms.get_collection("users").find({}).to_list(None)
     now = datetime.now()
     ay = now.year if now.month >= 9 else now.year - 1
-    soy = datetime.now().replace(month=8, day=1, year=ay, hour=0, minute=0, second=0, microsecond=0)
-    eoy = datetime.now().replace(month=7, day=31, year=ay + 1, hour=23, minute=59, second=59, microsecond=999999)
+    soy = datetime.now().replace(
+        month=8, day=1, year=ay, hour=0, minute=0, second=0, microsecond=0
+    )
+    eoy = datetime.now().replace(
+        month=7, day=31, year=ay + 1, hour=23, minute=59, second=59, microsecond=999999
+    )
     for user in users:
         user_id = str(user["_id"])
         entry = user_id[:4]
-        result = await calculate_user_time(user_id, date_start=soy, date_end=eoy, allow_cache=False)
-        await db.zvms_new.get_collection("time_academic_year").delete_many({"user": user_id})
-        await db.zvms_new.get_collection("time_academic_year").insert_one({
-            "user": user_id,
-            "entry": entry,
-            "academic_year": ay,
-            "start_of_year": soy,
-            "end_of_year": eoy,
-            **result
-        })
+        result = await calculate_user_time(
+            user_id, date_start=soy, date_end=eoy, allow_cache=False
+        )
+        await db.zvms_new.get_collection("time_academic_year").delete_many(
+            {"user": user_id}
+        )
+        await db.zvms_new.get_collection("time_academic_year").insert_one(
+            {
+                "user": user_id,
+                "entry": entry,
+                "academic_year": ay,
+                "start_of_year": soy,
+                "end_of_year": eoy,
+                **result,
+            }
+        )
+
 
 async def generate_reports():
-    classes = await db.zvms.get_collection("groups").find({"type": "class"}).to_list(None)
-    if not os.path.exists('./export'):
-        os.makedirs('./export')
+    classes = (
+        await db.zvms.get_collection("groups").find({"type": "class"}).to_list(None)
+    )
+    await db.zvms_new.get_collection("daily_exports").delete_many({})
+    db_data = await db.zvms_new.get_collection("daily_exports").insert_one(
+        {"created_at": datetime.now(), "status": "processing", "data": []}
+    )
+    db_id = validate_object_id(db_data.inserted_id)
+    if not os.path.exists("./export"):
+        os.makedirs("./export")
     else:
-        for item in os.listdir('./export'):
-            item_path = os.path.join('./export', item)
+        for item in os.listdir("./export"):
+            item_path = os.path.join("./export", item)
             if os.path.isdir(item_path):
                 for file in os.listdir(item_path):
                     file_path = os.path.join(item_path, file)
-                    if file.endswith('.pdf'):
+                    if file.endswith(".pdf"):
                         os.remove(file_path)
                 os.rmdir(item_path)
     for class_id in classes:
-        users = await db.zvms.get_collection("users").find({"group": str(class_id["_id"])}).to_list(None)
+        users = (
+            await db.zvms.get_collection("users")
+            .find({"group": str(class_id["_id"])})
+            .to_list(None)
+        )
         os.makedirs(f'./export/{class_id["name"]}', exist_ok=True)
         for user in users:
             user_id = str(user["id"])
             entry = int(user_id[:4])
-            soy = datetime.now().replace(month=8, day=1, year=entry, hour=0, minute=0, second=0, microsecond=0)
-            eoy = datetime.now().replace(month=7, day=31, year=entry + 3, hour=23, minute=59, second=59, microsecond=999999)
-            await create_statement_from_kernel_data(str(user['_id']), (soy, eoy), filename=f'./export/{class_id['name']}/{user['id']}_{user["name"]}.pdf', language='zh')
-            print(f"Exported statement for {user['name']} in class {class_id['name']}.")
+            soy = datetime.now().replace(
+                month=8, day=1, year=entry, hour=0, minute=0, second=0, microsecond=0
+            )
+            eoy = datetime.now().replace(
+                month=7,
+                day=31,
+                year=entry + 3,
+                hour=23,
+                minute=59,
+                second=59,
+                microsecond=999999,
+            )
+            filename, spreadsheet = await create_statement_from_kernel_data(
+                str(user["_id"]),
+                (soy, eoy),
+                filename=f'./export/{class_id['name']}/{user['id']}_{user["name"]}.pdf',
+                language="zh",
+            )
+            await db.zvms_new.get_collection("daily_exports").update_one(
+                {"_id": db_id},
+                {
+                    "$push": {
+                        "data": {
+                            **spreadsheet,
+                            "filename": filename,
+                        }
+                    }
+                },
+            )
+            print(
+                f"Exported statement for {user['name']} in class {class_id['name']} (saved to {filename})."
+            )
         print(f"Exported statements for class {class_id['name']}.")
     # Create a tar.gz archive of the export directory
-    if os.path.exists('./data/export.tar.gz'):
-        os.remove('./data/export.tar.gz')
-    with tarfile.open('./data/export.tar.gz', 'w:gz') as tar:
-        tar.add('./export', arcname='export')
+    spreadsheet_items = await db.zvms_new.get_collection("daily_exports").find_one(
+        {"_id": db_id}
+    )
+    spreadsheet_items = spreadsheet_items.get("data", [])
+    df = pd.DataFrame(spreadsheet_items)
+    df.rename(columns=TRANSLATIONS["zh"]["spreadsheet"], inplace=True)
+    if os.path.exists("./export/summary.xlsx"):
+        os.remove("./export/summary.xlsx")
+    df.to_excel(f"./export/summary.xlsx", index=False)
+    if os.path.exists("./data/export.tar.gz"):
+        os.remove("./data/export.tar.gz")
+    with tarfile.open("./data/export.tar.gz", "w:gz") as tar:
+        tar.add("./export", arcname="export")
+    return "./data/export.tar.gz"
 
 
 def describe_percentile(items: np.ndarray, step: int, bound: float) -> dict[str, float]:
@@ -142,7 +203,14 @@ def process_time_data(time_df: pd.DataFrame) -> pd.DataFrame:
         1,
     )
     time_df["social-practice"] = time_df["social_practice"]
-    time_df["diff"] = BASE_ON_CAMPUS + BASE_OFF_CAMPUS + BASE_SOCIAL_PRACTICE - time_df['on-campus'] - time_df['off-campus'] - time_df['social-practice']
+    time_df["diff"] = (
+        BASE_ON_CAMPUS
+        + BASE_OFF_CAMPUS
+        + BASE_SOCIAL_PRACTICE
+        - time_df["on-campus"]
+        - time_df["off-campus"]
+        - time_df["social-practice"]
+    )
     return time_df
 
 

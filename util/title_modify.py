@@ -1,5 +1,6 @@
 import re
 
+
 def modify_title_automatically(title: str):
     """
     Automatically modifies a title to ensure it meets the specified requirements:
@@ -32,6 +33,7 @@ def modify_title_automatically(title: str):
 
     return modified_title
 
+
 # --- Example Usage ---
 if __name__ == "__main__":
     test_titles = [
@@ -51,7 +53,7 @@ if __name__ == "__main__":
         "This is an_invalid-character.",
         "中文123英文456",
         "123中文456英文",
-        "中-文" # With a hyphen already
+        "中-文",  # With a hyphen already
     ]
 
     for title in test_titles:
@@ -63,14 +65,20 @@ if __name__ == "__main__":
         # The validation functions from your prompt:
         def validate_character_set(name):
             if not re.match(r"^[-\u4e00-\u9fa5\u2013-\u2014a-zA-Z0-9 /.-]+$", name):
-                return False, "Should only appear in Chinese, Latin Characters, numbers, spaces, slashes, dashes (including en dash and em dash), and dots"
+                return (
+                    False,
+                    "Should only appear in Chinese, Latin Characters, numbers, spaces, slashes, dashes (including en dash and em dash), and dots",
+                )
             return True, "Valid character set"
 
         def validate_spacing(name):
             if re.search(r"[\u4e00-\u9fa5][a-zA-Z0-9]", name) or re.search(
                 r"[a-zA-Z0-9][\u4e00-\u9fa5]", name
             ):
-                return False, "ASCII letters should be wrapped with spaces if inserted between Chinese characters"
+                return (
+                    False,
+                    "ASCII letters should be wrapped with spaces if inserted between Chinese characters",
+                )
             return True, "Valid spacing"
 
         is_char_set_valid, char_set_msg = validate_character_set(modified_title)

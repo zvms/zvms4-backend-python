@@ -179,10 +179,14 @@ async def get_user_time_statistics_v2(
         "social-practice": {
             "value": user_time["social-practice"],
             "group": find_percentile_threshold(
-                group_indicators["social-practice"], user_time["social-practice"], "social-practice"
+                group_indicators["social-practice"],
+                user_time["social-practice"],
+                "social-practice",
             ),
             "grade": find_percentile_threshold(
-                grade_indicators["social-practice"], user_time["social-practice"], "social-practice"
+                grade_indicators["social-practice"],
+                user_time["social-practice"],
+                "social-practice",
             ),
         },
     }

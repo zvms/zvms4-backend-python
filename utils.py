@@ -3,6 +3,8 @@ from fastapi import HTTPException
 
 
 def validate_object_id(id: str):
+    if isinstance(id, ObjectId):
+        return id
     try:
         _id = ObjectId(id)
     except Exception:

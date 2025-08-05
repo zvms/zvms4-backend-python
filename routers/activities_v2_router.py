@@ -410,11 +410,17 @@ async def modify_activity_status_v2(
             detail="Activity status can only be modified from pending to effective or refused",
         )
 
-    await volunteer.validate_check_permission(user, target_activity)
+    await volunteer.validate_check_permission(user, target_activity, strict=True)
 
     result = await db.zvms_new.get_collection("activities").update_one(
         {"_id": validate_object_id(activity_id)},
-        {"$set": {"status": status.status}},
+        {
+            "$set": {
+                "status": status.status,
+                "approver": str(user["id"]),
+                "updatedAt": datetime.now(),
+            }
+        },
     )
 
     if result.modified_count == 0:

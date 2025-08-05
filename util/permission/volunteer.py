@@ -24,11 +24,21 @@ async def validate_update_permission(user: dict, activity: Activity) -> bool:
     raise HTTPException(status_code=403, detail="Permission denied")
 
 
-async def validate_check_permission(user: dict, activity: Activity) -> bool:
+async def validate_check_permission(
+    user: dict, activity: Activity, strict: bool = False
+) -> bool:
     if "admin" in user.get("perm"):
         return True
-    if activity.approver == "authority" and "volunteer" in user.get("perm"):
+    if (
+        activity.approver == "authority"
+        and "volunteer" in user.get("perm")
+        and not strict
+    ):
         return True
-    if activity.approver == user["id"] and "volunteer" in user.get("perm"):
+    if (
+        activity.approver == user["id"]
+        and "volunteer" in user.get("perm")
+        and not strict
+    ):
         return True
     return False

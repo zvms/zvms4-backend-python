@@ -4,14 +4,24 @@ from time import sleep
 from fastapi import APIRouter, HTTPException, Depends, Request
 import tempfile
 
-from config import BASE_ON_CAMPUS, ON_TO_OFF_RATE, MAX_EXCEED_DISCOUNT, BASE_OFF_CAMPUS, OFF_TO_ON_RATE
+from config import (
+    BASE_ON_CAMPUS,
+    ON_TO_OFF_RATE,
+    MAX_EXCEED_DISCOUNT,
+    BASE_OFF_CAMPUS,
+    OFF_TO_ON_RATE,
+)
 from typings.export import ExportFormat, ExportTask, ExportStatus, ExportVariant
 from util.calculate import calculate_user_time
 from fastapi.responses import FileResponse
 from io import BytesIO
 import base64
 import json
-from util.object_id import get_current_user, validate_object_id, compulsory_temporary_token
+from util.object_id import (
+    get_current_user,
+    validate_object_id,
+    compulsory_temporary_token,
+)
 from datetime import datetime
 from database import db
 import pandas as pd
@@ -25,6 +35,7 @@ class CreateExport(BaseModel):
     format: ExportFormat
     allow_cache: bool = False
     include_description: bool = False
+
 
 tokens = []
 
@@ -54,14 +65,22 @@ async def process_task(task_id: str):
                 )
             else:
                 user_time = await calculate_user_time(
-                    str(user["_id"]), allow_cache=task["allow_cache"],
+                    str(user["_id"]),
+                    allow_cache=task["allow_cache"],
                     attach_description=include_description,
                 )
             more_on_campus = min(
-                round(max(user_time["off-campus"] - BASE_OFF_CAMPUS, 1) * OFF_TO_ON_RATE, 0), MAX_EXCEED_DISCOUNT
+                round(
+                    max(user_time["off-campus"] - BASE_OFF_CAMPUS, 1) * OFF_TO_ON_RATE,
+                    0,
+                ),
+                MAX_EXCEED_DISCOUNT,
             )
             more_off_campus = min(
-                round(max(user_time["on-campus"] - BASE_ON_CAMPUS, 1) * ON_TO_OFF_RATE, 0), MAX_EXCEED_DISCOUNT
+                round(
+                    max(user_time["on-campus"] - BASE_ON_CAMPUS, 1) * ON_TO_OFF_RATE, 0
+                ),
+                MAX_EXCEED_DISCOUNT,
             )
             user_time["on-campus"] += more_on_campus
             user_time["off-campus"] += more_off_campus
@@ -83,7 +102,9 @@ async def process_task(task_id: str):
                 "On Campus": user_time["on-campus"],
                 "Off Campus": user_time["off-campus"],
                 "Social Practice": user_time["social-practice"],
-                "Description": "" if not include_description else user_time.get("description", ""),
+                "Description": ""
+                if not include_description
+                else user_time.get("description", ""),
             }
             result.append(doc)
             task["percentage"] = (idx + 1) / len(users) * 100
@@ -240,6 +261,7 @@ async def get_export(task_id: str):
     task["_id"] = str(task["_id"])
     return {"code": 200, "status": "ok", "data": task}
 
+
 @router.post("/reports")
 async def request_download_reports(
     user=Depends(compulsory_temporary_token),
@@ -248,13 +270,14 @@ async def request_download_reports(
         raise HTTPException(status_code=403, detail="Permission denied")
     global tokens
     token_data = {
-        'token': uuid.uuid4().hex,
-        'granted_to': user['id'],
-        'expires_at': datetime.now().timestamp() + 300  # 5 minutes
+        "token": uuid.uuid4().hex,
+        "granted_to": user["id"],
+        "expires_at": datetime.now().timestamp() + 300,  # 5 minutes
     }
     token_data_encoded = base64.b64encode(json.dumps(token_data).encode()).decode()
     tokens.append(token_data)
     return token_data_encoded
+
 
 @router.get("/reports/download")
 async def download_reports(
@@ -267,14 +290,14 @@ async def download_reports(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid token format")
 
-    if not any(t['token'] == token_data['token'] for t in tokens):
+    if not any(t["token"] == token_data["token"] for t in tokens):
         raise HTTPException(status_code=403, detail="Invalid or expired token")
 
-    if datetime.now().timestamp() > token_data['expires_at']:
+    if datetime.now().timestamp() > token_data["expires_at"]:
         raise HTTPException(status_code=403, detail="Token expired")
 
     # Remove the token after use
-    tokens = [t for t in tokens if t['token'] != token_data['token']]
+    tokens = [t for t in tokens if t["token"] != token_data["token"]]
 
     # response to `export.tar.gz`, which is a tar.gz file containing all reports and already exists in the server
     file_path = "./data/export.tar.gz"
@@ -284,9 +307,7 @@ async def download_reports(
         file_path,
         media_type="application/gzip",
         filename="export.tar.gz",
-        headers={
-            "Content-Disposition": "attachment; filename=export.tar.gz"
-        }
+        headers={"Content-Disposition": "attachment; filename=export.tar.gz"},
     )
 
 
@@ -303,16 +324,19 @@ async def get_export_file(task_id: str, language: str = "en"):
     ) as tmp:
         result = pd.DataFrame(task["result"]).sort_values("_id")
         if language == "zh-CN":
-            result.rename(columns={
-                "_id": "数据库 ID",
-                "Name": "姓名",
-                "ID": "学号",
-                "Group": "班级",
-                "On Campus": "校内义工时长",
-                "Off Campus": "校外义工时长",
-                "Social Practice": "社会实践时长",
-                "Description": "描述",
-            }, inplace=True)
+            result.rename(
+                columns={
+                    "_id": "数据库 ID",
+                    "Name": "姓名",
+                    "ID": "学号",
+                    "Group": "班级",
+                    "On Campus": "校内义工时长",
+                    "Off Campus": "校外义工时长",
+                    "Social Practice": "社会实践时长",
+                    "Description": "描述",
+                },
+                inplace=True,
+            )
         if task["format"] == "excel":
             result.to_excel(tmp.name, index=False)
         elif task["format"] == "csv":

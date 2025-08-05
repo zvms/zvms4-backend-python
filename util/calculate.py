@@ -8,6 +8,48 @@ from settings import LANGUAGE
 from utils import validate_object_id
 
 
+async def generate_description(user_id: str):
+    collections = (
+        await db.zvms_new.get_collection("activity_members")
+        .find(
+            {
+                "member": user_id,
+                "status": "effective",
+            }
+        )
+        .to_list(None)
+    )
+    desc = []
+    for collection in collections:
+        activity = await db.zvms_new.get_collection("activities").find_one(
+            {"_id": validate_object_id(collection["activity"])}
+        )
+        if LANGUAGE == "zh-CN":
+            modes = {
+                "on-campus": "校内",
+                "off-campus": "校外",
+                "social-practice": "社会实践",
+            }
+            desc.append(
+                f"{activity['name']}（{activity['date'].strftime('%Y-%m-%d')}），{modes.get(collection['mode'], "未知")} {collection['duration']} 小时"
+            )
+        else:
+            desc.append(
+                f"{activity['name']} (at {activity['date'].strftime('%Y-%m-%d')}), {collection['mode']} {collection['duration']} hours"
+            )
+    if LANGUAGE == "zh-CN":
+        description = "；".join(desc)
+    elif len(desc) == 0:
+        description = "No activities found"
+    elif len(desc) == 1:
+        description = desc[0]
+    elif len(desc) == 2:
+        description = " and ".join(desc)
+    else:
+        description = ", ".join(desc[:-1]) + " and " + desc[-1]
+    return description
+
+
 async def calculate_user_time(
     user_id: str,
     date_start: datetime | None = None,
@@ -26,7 +68,9 @@ async def calculate_user_time(
 
     :return: User time
     """
-    print(f"Calculating time for user {user_id} with date range {date_start} to {date_end}, allow_cache={allow_cache}, attach_description={attach_description}")
+    print(
+        f"Calculating time for user {user_id} with date range {date_start} to {date_end}, allow_cache={allow_cache}, attach_description={attach_description}"
+    )
     if allow_cache and date_start is None and date_end is None:
         db_data = await db.zvms_new.get_collection("time").find_one({"user": user_id})
         if db_data:
@@ -57,33 +101,7 @@ async def calculate_user_time(
         )
         .to_list(None)
     )
-    description = ''
-    if attach_description:
-        desc = []
-        for collection in collections:
-            activity = await db.zvms_new.get_collection("activities").find_one(
-                {"_id": validate_object_id(collection["activity"])}
-            )
-            if LANGUAGE == 'zh-CN':
-                modes = {
-                    'on-campus': '校内',
-                    'off-campus': '校外',
-                    'social-practice': '社会实践',
-                }
-                desc.append(f"{activity['name']}（{activity['date'].strftime('%Y-%m-%d')}），{modes.get(collection['mode'], "未知")} {collection['duration']} 小时")
-            else:
-                desc.append(
-                    f"{activity['name']} (at {activity['date'].strftime('%Y-%m-%d')}), {collection['mode']} {collection['duration']} hours")
-        if LANGUAGE == 'zh-CN':
-            description = "；".join(desc)
-        elif len(desc) == 0:
-            description = "No activities found"
-        elif len(desc) == 1:
-            description = desc[0]
-        elif len(desc) == 2:
-            description = " and ".join(desc)
-        else:
-            description = ", ".join(desc[:-1]) + " and " + desc[-1]
+
     result = defaultdict(float)
     result["on-campus"] = 0
     result["off-campus"] = 0
@@ -92,6 +110,7 @@ async def calculate_user_time(
         result[m["mode"]] += m["duration"]
     result = dict(result)
     if attach_description:
+        description = await generate_description(user_id)
         result["description"] = description
 
     if not allow_cache and date_start is None and date_end is None:
@@ -110,11 +129,13 @@ async def calculate_user_time(
     return result
 
 
-def find_percentile_threshold(percentiles: dict[str, float], target: float, mode: str) -> float:
+def find_percentile_threshold(
+    percentiles: dict[str, float], target: float, mode: str
+) -> float:
     thresholds = {
-        'on-campus': BASE_ON_CAMPUS,
-        'off-campus': BASE_OFF_CAMPUS,
-        'social-practice': BASE_SOCIAL_PRACTICE,
+        "on-campus": BASE_ON_CAMPUS,
+        "off-campus": BASE_OFF_CAMPUS,
+        "social-practice": BASE_SOCIAL_PRACTICE,
     }
     if target >= thresholds[mode]:
         return 100
