@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from config import (
     BASE_OFF_CAMPUS,
@@ -26,12 +26,12 @@ router = APIRouter()
 @router.get("/{group_id}/activities")
 async def get_group_activities_v2(
     group_id: str,
-    page: int = 1,
-    perpage: int = 10,
-    search: str = "",
-    sort: str = "_id",
-    regex: bool = True,
-    asc: bool = False,
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    search: str = Query("", description="Search keyword"),
+    sort: str = Query("_id", description="Sort by field"),
+    regex: bool = Query(True, description="Use regex for search"),
+    asc: bool = Query(False, description="Sort in ascending order"),
     user=Depends(get_current_user),
 ):
     """
@@ -120,12 +120,12 @@ async def get_group_activities_v2(
 @router.get("/{group_id}/time")
 async def read_users(
     group_id: str,
-    query: str = "",
-    page: int = 1,
-    perpage: int = 5,
-    allow_cache: bool = True,
-    sort: str = "id",
-    asc: bool = True,
+    query: str = Query("", description="Search query for user name or ID"),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(5, ge=1, le=100, description="Number of items per page"),
+    allow_cache: bool = Query(True, description="Allow cached data"),
+    sort: str = Query("id", description="Sort by field"),
+    asc: bool = Query(True, description="Sort in ascending order"),
     user: Optional[str] = Depends(get_current_user),
 ):
     """
@@ -201,16 +201,16 @@ async def read_users(
 @router.get("/{group_id}/users")
 async def get_group_users_v2(
     group_id: str,
-    page: int = 1,
-    perpage: int = 10,
-    search: str = "",
-    sort: str = "id",
-    regex: bool = True,
-    asc: bool = True,
-    exceeding: bool = True,
-    shortage: bool = False,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    search: str = Query("", description="Search keyword"),
+    sort: str = Query("id", description="Sort by field"),
+    regex: bool = Query(True, description="Use regex for search"),
+    asc: bool = Query(True, description="Sort in ascending order"),
+    exceeding: bool = Query(True, description="Include exceeding time"),
+    shortage: bool = Query(False, description="Include shortage time"),
+    start: Optional[str] = Query(None, description="Start date filter"),
+    end: Optional[str] = Query(None, description="End date filter"),
     user=Depends(get_current_user),
 ):
     """

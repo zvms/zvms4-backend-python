@@ -1,5 +1,5 @@
 import re
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from database import db
 from util.calculate import calculate_user_time, find_percentile_threshold
 from util.get_class import get_user_class
@@ -13,12 +13,12 @@ router = APIRouter()
 @router.get("/{user_id}/activities")
 async def get_user_activities_v2(
     user_id: str,
-    page: int = 1,
-    perpage: int = 10,
-    search: str = "",
-    sort: str = "_id",
-    regex: bool = True,
-    asc: bool = False,
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    search: str = Query("", description="Search keyword"),
+    sort: str = Query("_id", description="Sort by field"),
+    regex: bool = Query(True, description="Use regex for search"),
+    asc: bool = Query(False, description="Sort in ascending order"),
     user=Depends(get_current_user),
 ):
     """

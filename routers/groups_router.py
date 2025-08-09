@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from typings.export import ExportFormat
 from typings.group import Group
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from database import db
 from pydantic import BaseModel
 
@@ -48,10 +48,9 @@ async def create_group(payload: Group, user=Depends(get_current_user)):
 
 @router.get("")
 async def get_groups(
-    page: int = 1,
-    perpage: int = 10,
-    type="all",
-    search="",
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    search: str = Query("", description="Search term for group names"),
     user=Depends(get_current_user),
 ):
     """
@@ -61,15 +60,6 @@ async def get_groups(
     if len(user["per"]) == 0:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    if type == "all":
-        target = ["permission", "class"]
-    elif type == "permission":
-        target = ["permission"]
-    elif type == "class":
-        target = ["class"]
-    else:
-        raise HTTPException(status_code=400, detail="Invalid type")
-
     count = await db.zvms.groups.count_documents(
         {"name": {"$regex": search, "$options": "i"}}
     )
@@ -77,7 +67,6 @@ async def get_groups(
     pipeline = [
         {
             "$match": {
-                "type": {"$in": target},
                 "name": {"$regex": search, "$options": "i"},
             },
         },
@@ -148,9 +137,9 @@ async def update_group_name(
 @router.get("/{group_id}/activities")
 async def get_class_activities(
     group_id: str,
-    page: int = 1,
-    perpage: int = 10,
-    query: str = "",
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    query: str = Query("", description="Search query for activities"),
     user=Depends(get_current_user),
 ):
     """
@@ -190,10 +179,10 @@ async def get_class_activities(
 @router.get("/{group_id}/user")
 async def get_users_in_class(
     group_id: str,
-    page: int = 1,
-    perpage: int = 10,
-    search: str = "",
-    pwdm: bool = False,
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    search: str = Query("", description="Search term for user names"),
+    pwdm: bool = Query(False, description="Include password mode information"),
     user=Depends(get_current_user),
 ):
     """
@@ -238,14 +227,14 @@ async def get_users_in_class(
 @router.get("/{group_id}/time")
 async def get_user_times_in_class(
     group_id: str,
-    page: int = 1,
-    perpage: int = 10,
-    exceeding: bool = True,
-    shortage: bool = False,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
-    search: str = "",
-    allow_cache: bool = True,
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    exceeding: bool = Query(True, description="Include exceeding time calculations"),
+    shortage: bool = Query(False, description="Include shortage calculations"),
+    start: Optional[str] = Query(None, description="Start date filter"),
+    end: Optional[str] = Query(None, description="End date filter"),
+    search: str = Query("", description="Search term for user names"),
+    allow_cache: bool = Query(True, description="Allow cached time calculations"),
     user=Depends(get_current_user),
 ):
     """

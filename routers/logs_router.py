@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from config import MAX_QUERY_COUNT
 from database import db
@@ -11,10 +11,10 @@ router = APIRouter()
 
 @router.get("")
 async def read_logs(
-    performer: str = "",
-    page: int = -1,
-    perpage: int = 10,
-    query: str = "",
+    performer: str = Query("", description="Filter by performer/user"),
+    page: int = Query(-1, ge=-1, description="Page number (-1 for no pagination)"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    query: str = Query("", max_length=MAX_QUERY_COUNT, description="Search query"),
     user=Depends(get_current_user),
 ):
     if "admin" not in user["per"]:

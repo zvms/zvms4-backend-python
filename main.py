@@ -15,6 +15,7 @@ from routers import (
     groups_v2_router,
     activity_statistics_router,
     times_router,
+    mcp_router,
 )
 from database import close_mongo_connection, connect_to_mongo
 import socketio
@@ -138,9 +139,10 @@ app.include_router(times_router.router, prefix="/api/v2/times")
 app.include_router(
     activity_statistics_router.router, prefix="/api/v2/statistics/activities"
 )
+app.include_router(mcp_router.router, prefix="/api/v2/mcp")
 
 
-@app.router.get("/api/")
+@app.get("/api/")
 async def home():
     return {
         "status": "ok",

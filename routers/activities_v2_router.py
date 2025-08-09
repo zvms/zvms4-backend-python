@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Literal, cast
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from database import db
@@ -57,13 +57,13 @@ async def create_activity_v2(
 
 @router.get("")
 async def get_activities_v2(
-    page: int = 1,
-    perpage: int = 10,
-    search: str = "",
-    sort: str = "_id",
-    asc: bool = False,
-    regex: bool = False,
-    activity_type: str = "all",
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    search: str = Query("", description="Search string for filtering activities"),
+    sort: str = Query("_id", description="Sort field"),
+    asc: bool = Query(False, description="Sort order (ascending or descending)"),
+    regex: bool = Query(False, description="Whether to use regex for searching"),
+    activity_type: str = Query("all", description="Type of activity to filter by"),
     user=Depends(get_current_user),
 ):
     """
@@ -191,12 +191,12 @@ async def delete_activity_v2(
 @router.get("/{activity_id}/members")
 async def get_activity_members_v2(
     activity_id: str,
-    page: int = 1,
-    perpage: int = 10,
-    search: str = "",
-    sort: str = "_id",
-    asc: bool = True,
-    regex: bool = False,
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    search: str = Query("", description="Search string for filtering members"),
+    sort: str = Query("_id", description="Sort field"),
+    asc: bool = Query(True, description="Sort order (ascending or descending)"),
+    regex: bool = Query(False, description="Whether to use regex for searching"),
     user=Depends(get_current_user),
 ):
     """

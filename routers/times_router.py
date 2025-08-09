@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import Depends, APIRouter
+from fastapi import Depends, APIRouter, Query
 
 from typings.time import UserActivityTime
 from util.calculate import calculate_user_time
@@ -15,11 +15,11 @@ router = APIRouter()
 
 @router.get("")
 async def read_times(
-    query: str = "",
-    page: int = 1,
-    perpage: int = 5,
-    sort: str = "id",
-    asc: bool = True,
+    query: str = Query("", description="Search query for user name or ID"),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(5, ge=1, le=100, description="Number of items per page"),
+    sort: str = Query("id", description="Sort by field"),
+    asc: bool = Query(True, description="Sort in ascending order"),
     user=Depends(get_current_user),
 ):
     """
