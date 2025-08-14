@@ -7,6 +7,7 @@
 **Language:** Python
 **Framework:** FastAPI
 **Database:** MongoDB
+**Report Date:** August 14, 2025
 
 ## Executive Summary
 
@@ -136,12 +137,6 @@ The system implements complex volunteer time calculations with different rates:
 - **ON_TO_OFF_RATE**: 1/3 conversion rate
 - **OFF_TO_ON_RATE**: 1/2 conversion rate
 
-#### Activity Types
-- **Specified**: Specific volunteer activities
-- **Special**: Special events
-- **Social**: Social service activities
-- **Scale**: Large-scale activities
-
 #### Activity Modes
 - **On-campus**: School-based activities
 - **Off-campus**: External activities
@@ -187,6 +182,267 @@ The system includes conversion utilities for migrating data:
 - **activities.py**: Activity data conversion
 - **groups.py**: Group data conversion
 - **convert_v2.py**: Version 2 migration utilities
+
+## Comprehensive Functionality Overview
+
+### 1. Core Data Management (CRUD Operations)
+
+#### User Management
+- **Create**: New user registration with validation
+- **Read**: User profile retrieval, search, and filtering
+- **Update**: Profile modifications, password changes, role assignments
+- **Delete**: User account deactivation and data archival
+
+#### Activity Management
+- **Create**: Activity creation with type classification (specified, special, social, scale)
+- **Read**: Activity listing, filtering by status, type, and date ranges
+- **Update**: Activity details modification, status changes, member management
+- **Delete**: Activity cancellation and historical preservation
+
+#### Group Management
+- **Create**: Class/organizational group creation
+- **Read**: Group hierarchy browsing, member listings
+- **Update**: Group information updates, member assignments
+- **Delete**: Group dissolution with member reassignment
+
+#### Time Management
+- **Create**: Time record creation for volunteer activities
+- **Read**: Time tracking history, individual and aggregate reports
+- **Update**: Time record corrections and validations
+- **Delete**: Invalid time record removal
+
+### 2. Advanced Analytics & Statistics
+
+#### Activity Statistics Engine
+The system provides comprehensive statistical analysis for volunteer activities:
+
+**Descriptive Statistics:**
+- **Mean**: Average volunteer hours per activity
+- **Median**: Middle value of time distributions
+- **Mode**: Most frequent volunteer duration
+- **Standard Deviation**: Variability in volunteer participation
+- **Min/Max Values**: Range of volunteer hours
+- **Variance**: Spread of data points
+- **Percentiles**: 25th and 75th percentile calculations
+- **Total Participants**: Count of volunteers per activity
+
+**Implementation Features:**
+- Uses NumPy and SciPy for statistical computations
+- Real-time calculation of distribution metrics
+- Support for activity-specific analytics
+- Historical trend analysis capabilities
+
+#### Time Calculation System
+Complex volunteer time calculation engine with:
+
+**Base Requirements:**
+- On-campus activities: 25 hours baseline
+- Off-campus activities: 15 hours baseline
+- Social practice: 18 hours baseline
+
+**Conversion Mechanisms:**
+- On-campus to off-campus rate: 1:3 conversion
+- Off-campus to on-campus rate: 1:2 conversion
+- Maximum exceed discount: 100 hours cap
+
+**Advanced Features:**
+- Automatic time aggregation across activity types
+- Surplus hour redistribution algorithms
+- Credit transfer between activity categories
+- Compliance checking against graduation requirements
+
+### 3. Data Import/Export Capabilities
+
+#### Export Functionality
+**Supported Formats:**
+- Excel (.xlsx) spreadsheets
+- PDF certificates and reports
+- JSON data dumps
+- CSV for data analysis
+
+**Export Types:**
+- Individual student reports
+- Class-wide summaries
+- Activity participation records
+- Time tracking reports
+- Administrative dashboards
+
+**Background Processing:**
+- Asynchronous export task management
+- Progress tracking with status updates
+- Large dataset handling with pagination
+- Cached export generation for performance
+
+#### Import Functionality
+**Data Sources:**
+- Excel file batch imports
+- CSV data integration
+- Legacy system migrations
+- External activity databases
+
+**Validation Pipeline:**
+- Data format verification
+- Duplicate detection and handling
+- Constraint validation
+- Error reporting and rollback
+
+### 4. Real-time Features & Notifications
+
+#### WebSocket Integration
+- Live activity updates
+- Real-time volunteer registration
+- Instant notification delivery
+- Admin dashboard live metrics
+
+#### Notification System
+**Types:**
+- Activity announcements
+- Registration confirmations
+- Status change alerts
+- Deadline reminders
+- Achievement notifications
+
+**Delivery Channels:**
+- In-app notifications
+- Real-time push updates
+- Email integration (configurable)
+- SMS alerts for critical updates
+
+### 5. Advanced Search & Filtering
+
+#### Multi-dimensional Search
+**User Search:**
+- Name, ID, class, and role filtering
+- Activity participation history
+- Time contribution rankings
+- Achievement and trophy listings
+
+**Activity Search:**
+- Type, status, and date range filters
+- Location-based filtering
+- Organizer and participant searches
+- Capacity and availability checks
+
+**Advanced Queries:**
+- Complex boolean logic support
+- Fuzzy matching for names
+- Regular expression patterns
+- Geospatial queries for activities
+
+### 6. Audit & Compliance System
+
+#### Comprehensive Logging
+**System Logs:**
+- User authentication events
+- Data modification tracking
+- Administrative actions
+- System performance metrics
+
+**Audit Trail:**
+- Complete change history
+- User action attribution
+- Timestamp precision
+- Rollback capabilities
+
+**Compliance Features:**
+- Data retention policies
+- Privacy protection measures
+- Access control monitoring
+- Regulatory compliance reporting
+
+### 7. Certificate & Report Generation
+
+#### Automated Certificate System
+**Features:**
+- PDF certificate generation
+- Custom template support
+- Digital signature integration
+- Batch processing capabilities
+- Multi-language support (Chinese/English)
+
+**Report Types:**
+- Individual volunteer summaries
+- Class performance reports
+- Activity impact assessments
+- Statistical analysis reports
+- Compliance verification documents
+
+### 8. Background Task Management
+
+#### Scheduled Operations
+**Daily Tasks:**
+- Time calculation updates
+- Report generation
+- Data validation checks
+- Cache refresh operations
+
+**Periodic Maintenance:**
+- Database optimization
+- Log rotation
+- Backup operations
+- System health checks
+
+**Event-driven Tasks:**
+- Registration confirmations
+- Status change notifications
+- Deadline reminders
+- Achievement calculations
+
+### 9. API Versioning & Migration
+
+#### Version Management
+**V1 APIs:** Legacy endpoints with deprecation notices
+**V2 APIs:** Enhanced functionality with:
+- Improved data models
+- Better performance optimization
+- Enhanced security features
+- Expanded functionality
+
+**Migration Support:**
+- Backward compatibility layers
+- Data conversion utilities
+- Gradual migration tools
+- Client upgrade assistance
+
+### 10. Integration Capabilities
+
+#### External API Integrations
+**AI Services:**
+- OpenAI integration for content analysis
+- Anthropic Claude for advanced text processing
+- Natural language processing for activity descriptions
+
+**Utility Services:**
+- Weather API for outdoor activity planning
+- Translation services for multilingual support
+- Dictionary API for content validation
+- Mathematical graphing for statistics visualization
+
+#### MCP (Model Context Protocol)
+- Advanced AI model integration
+- Context-aware processing
+- Intelligent content generation
+- Automated analysis capabilities
+
+### 11. Performance Optimization
+
+#### Database Optimization
+- Connection pooling (10 min/max connections)
+- Async query processing
+- Index optimization strategies
+- Query performance monitoring
+
+#### Caching Strategy
+- Export result caching
+- User session management
+- Activity data caching
+- Statistical computation caching
+
+#### Scalability Features
+- Horizontal scaling support
+- Load balancing capabilities
+- Resource usage monitoring
+- Performance bottleneck detection
 
 ## Strengths
 
