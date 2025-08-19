@@ -48,7 +48,7 @@ async def create_group(payload: Group, user=Depends(get_current_user)):
 
 @router.get("")
 async def get_groups(
-    page: int = Query(1, ge=1, description="Page number for pagination"),
+    page: int = Query(1, ge=-1, description="Page number for pagination"),
     perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
     search: str = Query("", description="Search term for group names"),
     user=Depends(get_current_user),

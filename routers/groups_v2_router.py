@@ -121,7 +121,7 @@ async def get_group_activities_v2(
 async def read_users(
     group_id: str,
     query: str = Query("", description="Search query for user name or ID"),
-    page: int = Query(1, ge=1, description="Page number for pagination"),
+    page: int = Query(1, ge=-1, description="Page number for pagination"),
     perpage: int = Query(5, ge=1, le=100, description="Number of items per page"),
     allow_cache: bool = Query(True, description="Allow cached data"),
     sort: str = Query("id", description="Sort by field"),
