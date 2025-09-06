@@ -14,7 +14,7 @@ from config import (
     BASE_SOCIAL_PRACTICE,
 )
 from database import db
-from util.calculate import calculate_user_time
+from util.calculate import calculate_user_time, time_with_origin
 from util.statement import create_statement_from_kernel_data, TRANSLATIONS
 from utils import validate_object_id
 
@@ -256,6 +256,32 @@ def describe_df_statistical_indicators(
     return result
 
 
+async def compute_batch_origins():
+    users_pipeline = [
+        {
+            "$group": {
+                "_id": {"$substrCP": ["$id", 0, 4]},
+                "originalIds": {"$push": "$_id"},
+            }
+        }
+    ]
+    grades = (
+        await db.zvms.get_collection("users").aggregate(users_pipeline).to_list(None)
+    )
+    await db.zvms_new.get_collection("time_with_origin").delete_many({})
+    await db.zvms_new.get_collection("time_with_origin_stat").delete_many({})
+    groups = await db.zvms.get_collection("groups").find({"type": "class"}).to_list(None)
+    for grade in grades:
+        await time_with_origin("grade", grade["_id"])
+        await time_with_origin("grade", grade["_id"], 20)
+        await time_with_origin("grade", grade["_id"], 60)
+        await time_with_origin("grade", grade["_id"], 80)
+    for group in groups:
+        await time_with_origin("group", str(group["_id"]))
+        await time_with_origin("group", str(group["_id"]), 20)
+        await time_with_origin("group", str(group["_id"]), 60)
+        await time_with_origin("group", str(group["_id"]), 80)
+
 async def compute_group_indicators():
     """
     This function computes group indicators based on the time data of users.
@@ -365,3 +391,4 @@ async def compute_tasks():
     await compute_ay_time()
     await compute_indicators()
     await compute_group_indicators()
+    await compute_batch_origins()

@@ -5,9 +5,9 @@ from util.title_modify import modify_title_automatically
 async def regulate_titles():
     activities = await db.zvms_new.get_collection("activities").find({}).to_list(None)
     for activity in activities:
-        new_title = modify_title_automatically(activity["title"])
-        await db.zvms_new.update_one(
-            {"_id": activity["_id"]}, {"$set": {"title": new_title}}
+        new_title = modify_title_automatically(activity["name"])
+        await db.zvms_new.get_collection("activities").update_one(
+            {"_id": activity["_id"]}, {"$set": {"name": new_title}}
         )
 
 

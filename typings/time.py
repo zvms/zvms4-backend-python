@@ -5,7 +5,7 @@ from config import (
     OFF_TO_ON_RATE,
     MAX_EXCEED_DISCOUNT,
     ON_TO_OFF_RATE,
-    BASE_ON_CAMPUS,
+    BASE_ON_CAMPUS, BASE_SOCIAL_PRACTICE,
 )
 from typings.activity import ActivityMode
 
@@ -22,6 +22,19 @@ class UserActivityTime(BaseModel):
     @property
     def total(self) -> float:
         return self.on_campus_raw + self.off_campus_raw + self.social_practice
+
+    @property
+    def total_effective(self) -> float:
+        return self.on_campus + self.off_campus + self.social_practice
+
+    @property
+    def diff(self) -> float:
+        return max(BASE_ON_CAMPUS - self.on_campus, 0) + max(BASE_OFF_CAMPUS - self.off_campus, 0) + max(BASE_SOCIAL_PRACTICE - self.social_practice, 0)
+
+    @property
+    def percentage(self) -> float:
+        total = BASE_ON_CAMPUS + BASE_OFF_CAMPUS + BASE_SOCIAL_PRACTICE
+        return (total - self.diff) / total * 100
 
     @property
     def on_campus(self) -> float:

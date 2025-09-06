@@ -134,7 +134,7 @@ async def get_user_time_v2(
 
 @router.get("/{user_id}/time_statistics")
 async def get_user_time_statistics_v2(
-    user_id: str,  # , user=Depends(get_current_user)
+    user_id: str, user=Depends(get_current_user)
 ):
     """
     Get user time statistics, particularly `percentiles`.
