@@ -1,4 +1,6 @@
-blocked = []
+from settings import BLOCKED_USERS
+
+blocked = BLOCKED_USERS
 
 def block(item: str):
     global blocked
