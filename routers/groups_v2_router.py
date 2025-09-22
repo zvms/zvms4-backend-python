@@ -4,6 +4,7 @@ from typing import Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Query
+from bcrypt import checkpw
 
 from config import (
     BASE_OFF_CAMPUS,
@@ -268,7 +269,7 @@ async def get_group_users_v2(
     for member in members:
         member["_id"] = str(member["_id"])
         if pwdm:
-            member["password"] = not check_password(member["id"], member["password"])
+            member["password"] = not checkpw(member["id"], member["password"])
         else:
             member["password"] = None
 
