@@ -26,7 +26,7 @@ async def read_logs(
     query: dict[str, Any] = (
         {}
         if query == ""
-        else {"$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}]}
+        else {"$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}, {"clarity": {"$regex": query}}]}
     )
     if performer != "":
         query["user"] = performer
