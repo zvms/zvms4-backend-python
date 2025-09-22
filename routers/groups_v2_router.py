@@ -209,6 +209,7 @@ async def get_group_users_v2(
     asc: bool = Query(True, description="Sort in ascending order"),
     exceeding: bool = Query(True, description="Include exceeding time"),
     shortage: bool = Query(False, description="Include shortage time"),
+    pwdm: bool = Query(False, description="Include password mode information"),
     start: Optional[str] = Query(None, description="Start date filter"),
     end: Optional[str] = Query(None, description="End date filter"),
     user=Depends(get_current_user),
@@ -225,6 +226,7 @@ async def get_group_users_v2(
     :param user: Current user
     :param exceeding: Exceeding time
     :param shortage: Shortage time
+    :param pwdm: Include password mode information
     :param start: Start date
     :param end: End date
     """
@@ -236,6 +238,11 @@ async def get_group_users_v2(
             [
                 {
                     "$match": {
+                        "$or": [
+                            {"name": {"$regex": query, "$options": "i"}},
+                            {"id": {"$regex": query, "$options": "i"}},
+                            {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}},
+                        ],
                         "group": group_id  # TODO should be `groups` in the new structure
                     }
                 },
@@ -249,12 +256,21 @@ async def get_group_users_v2(
 
     count = await db.zvms.get_collection("users").count_documents(
         {
+            "$or": [
+                {"name": {"$regex": query, "$options": "i"}},
+                {"id": {"$regex": query, "$options": "i"}},
+                {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}},
+            ],
             "group": group_id  # TODO should be `groups` in the new structure
         }
     )
 
     for member in members:
         member["_id"] = str(member["_id"])
+        if pwdm:
+            member["password"] = not check_password(member["id"], member["password"])
+        else:
+            member["password"] = None
 
     return {
         "total": count,
