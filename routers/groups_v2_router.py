@@ -239,9 +239,9 @@ async def get_group_users_v2(
                 {
                     "$match": {
                         "$or": [
-                            {"name": {"$regex": query, "$options": "i"}},
-                            {"id": {"$regex": query, "$options": "i"}},
-                            {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}},
+                            {"name": {"$regex": search, "$options": "i"}},
+                            {"id": {"$regex": search, "$options": "i"}},
+                            {"past": {"$elemMatch": {"$regex": search, "$options": "i"}}},
                         ],
                         "group": group_id  # TODO should be `groups` in the new structure
                     }
@@ -257,9 +257,9 @@ async def get_group_users_v2(
     count = await db.zvms.get_collection("users").count_documents(
         {
             "$or": [
-                {"name": {"$regex": query, "$options": "i"}},
-                {"id": {"$regex": query, "$options": "i"}},
-                {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}},
+                {"name": {"$regex": search, "$options": "i"}},
+                {"id": {"$regex": search, "$options": "i"}},
+                {"past": {"$elemMatch": {"$regex": search, "$options": "i"}}},
             ],
             "group": group_id  # TODO should be `groups` in the new structure
         }
