@@ -343,6 +343,11 @@ async def add_activity_member_v2(
     member = member.model_dump()
 
     result = await db.zvms_new.get_collection("activity_members").insert_one(member)
+    
+    log.with_text(
+        f'User {await get_user_name(user["id"])} added member {await get_user_name(member.member)} to activity {target_activity.name} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
+    )
+    await log.insert_log()
 
     return {
         "id": str(result.inserted_id),
@@ -568,7 +573,7 @@ async def amalgamate_activities_v2(
         status=final_status,
         creator=str(user["id"]),
         origin=form.origin,
-        place="N/A",
+        place="",
         date=datetime.now(),
         createdAt=datetime.now(),
         updatedAt=datetime.now(),
@@ -582,12 +587,12 @@ async def amalgamate_activities_v2(
         {"$set": {"activity": new_id}},
     )
     # Then checkout duplicated members
-    # Step 1: Group documents by (mode, activity, member)
+    # Step 1: Group documents by (mode, member)
     grouped = defaultdict(list)
     for doc in (
         await db.zvms_new.get_collection("activity_members").find().to_list(None)
     ):
-        key = (doc["mode"], doc["activity"], doc["member"])
+        key = (doc["mode"], doc["member"])
         grouped[key].append(doc)
 
     # Step 2: For groups with duplicates, keep one with new duration
