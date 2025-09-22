@@ -38,7 +38,7 @@ app.add_middleware(
         "http://localhost:5173",
         "https://v4.zvms.site",
         "https://v4-netlify.zvms.site",
-        "https://deploy-preview-64--zvms.netlify.app",
+        "https://main--zvms.netlify.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -149,7 +149,7 @@ async def home():
         "code": 200,
         "data": {
             "message": "Welcome to ZVMS API",
-            "version": "0.1.0-alpha.1",
+            "version": "4.1",
             "author": "ZZDev",
             "license": "MIT",
             "source": "https://github.com/zvms/zvms4-backend-python.git",
@@ -238,10 +238,10 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError):
 
 
 @app.exception_handler(Exception)
-async def generic_exception_handler():
+async def generic_exception_handler(_: Request, exc: Exception):
     """Catch-all exception handler to return a generic error message."""
     return JSONResponse(
-        content={"detail": "An internal server error occurred"}, status_code=500
+        content={"detail": "An internal server error occurred: %s" % type(exc).__name__}, status_code=500
     )
 
 
@@ -253,7 +253,7 @@ async def operation_failure_exception_handler(_: Request, exc: OperationFailure)
 
 @app.get("/api/version")
 async def get_version():
-    return {"status": "ok", "code": 200, "data": "0.1.0-alpha.1"}
+    return {"status": "ok", "code": 200, "data": "4.1"}
 
 
 if __name__ == "__main__":
