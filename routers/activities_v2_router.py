@@ -345,7 +345,7 @@ async def add_activity_member_v2(
     result = await db.zvms_new.get_collection("activity_members").insert_one(member)
     
     log.with_text(
-        f'User {await get_user_name(user["id"])} added member {await get_user_name(member.member)} to activity {target_activity.name} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
+        f'User {await get_user_name(user["id"])} added member {await get_user_name(target_user.id)} to activity {target_activity.name} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
     )
     await log.insert_log()
 
