@@ -497,7 +497,10 @@ async def amalgamate_activities_v2(
     :param log: Logger object
     :return: ID of the new amalgamated activity
     """
-
+    
+    # TODO: Restore it.
+    raise HTTPException(status_code=403, detail="Feature under maintenance")
+    
     '''
     # Here, we only allow admin and volunteer to amalgamate activities.
     await volunteer.validate_create_permission(user, True)
@@ -628,7 +631,6 @@ async def amalgamate_activities_v2(
     await log.insert_log()
     return JSONResponse({"_id": str(result.inserted_id)}, status_code=201)
     '''
-    raise HTTPException(status_code=403, detail="Feature under maintenance")
 
 class UpdateUserRecord(BaseModel):
     duration: float
