@@ -4,7 +4,6 @@ from typing import Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, Query
-from bcrypt import checkpw
 
 from config import (
     BASE_OFF_CAMPUS,
@@ -20,6 +19,7 @@ from util.calculate import calculate_user_time
 from util.get_class import get_user_class
 from util.object_id import get_current_user, validate_object_id
 from util.permission.user import validate_read_group_permission
+from util.cert import check_password
 
 router = APIRouter()
 
@@ -269,7 +269,7 @@ async def get_group_users_v2(
     for member in members:
         member["_id"] = str(member["_id"])
         if pwdm:
-            member["password"] = not checkpw(member["id"], member["password"])
+            member["password"] = not check_password(member["id"], member["password"])
         else:
             member["password"] = None
 

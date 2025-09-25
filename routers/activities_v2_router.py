@@ -345,7 +345,7 @@ async def add_activity_member_v2(
     result = await db.zvms_new.get_collection("activity_members").insert_one(member)
     
     log.with_text(
-        f'User {await get_user_name(user["id"])} added member {await get_user_name(member.member)} to activity {target_activity.name} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
+        f'User {await get_user_name(user["id"])} added member {await get_user_name(target_user.id)} to activity {target_activity.name} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
     )
     await log.insert_log()
 
@@ -497,7 +497,11 @@ async def amalgamate_activities_v2(
     :param log: Logger object
     :return: ID of the new amalgamated activity
     """
-
+    
+    # TODO: Restore it.
+    raise HTTPException(status_code=403, detail="Feature under maintenance")
+    
+    '''
     # Here, we only allow admin and volunteer to amalgamate activities.
     await volunteer.validate_create_permission(user, True)
 
@@ -626,7 +630,7 @@ async def amalgamate_activities_v2(
     )
     await log.insert_log()
     return JSONResponse({"_id": str(result.inserted_id)}, status_code=201)
-
+    '''
 
 class UpdateUserRecord(BaseModel):
     duration: float
