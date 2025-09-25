@@ -490,7 +490,7 @@ async def read_logs(
         {"user": user_oid}
         if query == ""
         else {
-            "$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}],
+            "$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}, {"clarity": {"$regex": query}}],
             "user": user_oid,
         }
     )
