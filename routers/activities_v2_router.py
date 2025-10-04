@@ -48,7 +48,7 @@ async def create_activity_v2(
     result = await db.zvms_new.get_collection("activities").insert_one(activity)
 
     log.with_text(
-        f'User {await get_user_name(user['id'])} (ID: {user['id']}) created activity {activity["name"]} at {datetime.now().isoformat()}. The ID of the activity is {result.inserted_id}.'
+        f'User {await get_user_name(user['id'])} (ID: {user['id']}) created activity {activity["name"]} at {datetime.now().isoformat()} (ID: {result.inserted_id}).'
     )
     await log.insert_log()
 
