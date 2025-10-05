@@ -3,34 +3,11 @@ from datetime import datetime
 
 
 def validate_activity_name(name: str):
-    """
-    Validate activity name.
-    1. Should be only appear in Chinese, Latin Characters, numbers, spaces, slashes, dashes, and dots.
-    2. ASCII letters should be wrapped with spaces if inserted between Chinese characters.
-    3. Should not be empty.
-    4. Should not have space before or after the string.
-    """
     if not name.strip():
         return False, "Should not be empty"
 
     if name[0] == " " or name[-1] == " ":
         return False, "Should not have space before or after the string"
-
-    # Should only contain Chinese, Latin Characters, numbers, spaces, slashes, and dots
-    if not re.match(r"^[-\u4e00-\u9fa5\u2013-\u2014a-zA-Z0-9 /-/.]+$", name):
-        return (
-            False,
-            "Should only appear in Chinese, Latin Characters, numbers, spaces, slashes, dashes (including en dash and em dash), and dots",
-        )
-
-    # ASCII letters should be wrapped with spaces if inserted between Chinese characters
-    if re.search(r"[\u4e00-\u9fa5][a-zA-Z0-9]", name) or re.search(
-        r"[a-zA-Z0-9][\u4e00-\u9fa5]", name
-    ):
-        return (
-            False,
-            "ASCII letters should be wrapped with spaces if inserted between Chinese characters",
-        )
 
     return True, ""
 

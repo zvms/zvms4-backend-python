@@ -297,8 +297,6 @@ async def update_user(
 
     pasts = []
 
-    if user_info["name"] != user_struct.name:
-        pasts.append(user_info["name"])
     if user_info["id"] != user_struct.id:
         pasts.append(user_info["id"])
 
