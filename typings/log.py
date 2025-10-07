@@ -1,5 +1,6 @@
 from fastapi import Request, Depends
 from datetime import datetime
+from typing import Optional
 
 from database import db
 from util.logify import binding_user_credentials
