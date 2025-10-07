@@ -15,6 +15,7 @@ class ZVMSLog:
     data: str
     timestamp: float
     ip: str
+    xuehai: Optional[str | None]
 
     def __init__(
         self,
@@ -23,6 +24,7 @@ class ZVMSLog:
         clarity: str = "",
         data: str = "",
         ip: str = "",
+        xuehai: Optional[str | None] = "",
         timestamp: float = datetime.now().timestamp(),
     ):
         self.url = url
@@ -31,6 +33,7 @@ class ZVMSLog:
         self.data = data
         self.timestamp = timestamp
         self.ip = ip
+        self.xuehai = xuehai
 
     def model_dump(self) -> dict:
         return {
@@ -39,6 +42,7 @@ class ZVMSLog:
             "clarity": self.clarity,
             "data": self.data,
             "ip": self.ip,
+            "xuehai": "" if self.xuehai is None else self.xuehai
             "timestamp": self.timestamp,
         }
 
@@ -53,6 +57,10 @@ class ZVMSLog:
     def includes_clarity(self) -> bool:
         return self.clarity != "" and self.clarity is not None
 
+    @property
+    def includes_xuehai(self) -> bool:
+        return self.xuehai != "" and self.xuehai is not None
+
 
 def inject_log(
     request: Request,
@@ -62,7 +70,8 @@ def inject_log(
     url = str(request.url)
     user = user["id"]
     clarity = meta["clarity_id"]
+    xuehai = meta["xuehai_id"]
     ip = meta["ip"]
     data = ""
     timestamp = datetime.timestamp(datetime.now())
-    return ZVMSLog(url, user, clarity, data, ip, timestamp)
+    return ZVMSLog(url, user, clarity, data, ip, xuehai, timestamp)
