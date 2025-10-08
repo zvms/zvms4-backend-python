@@ -42,7 +42,7 @@ class ZVMSLog:
             "clarity": self.clarity,
             "data": self.data,
             "ip": self.ip,
-            "xuehai": "" if self.xuehai is None else self.xuehai
+            "xuehai": "" if self.xuehai is None else self.xuehai,
             "timestamp": self.timestamp,
         }
 
