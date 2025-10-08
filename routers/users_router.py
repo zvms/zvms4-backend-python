@@ -288,6 +288,7 @@ async def update_user(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     user_info = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
+    original_name = await get_user_name(user_oid)
 
     if not validate_number(user_struct.id)[0]:
         raise HTTPException(status_code=400, detail=validate_number(user_struct.id)[1])
@@ -315,7 +316,7 @@ async def update_user(
     )
 
     log.with_text(
-        f"""User {await get_user_name(user_oid)}'s data is updated to {user_struct.model_dump()}"""
+        f"""User {original_name}'s data is updated to {user_struct.model_dump()}"""
     )
     await log.insert_log()
 
