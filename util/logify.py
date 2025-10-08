@@ -23,6 +23,13 @@ def get_client_clarity_user_id(request: Request) -> str:
         return request.headers["Clarity-ID"].split("%7C")[0].split('%5E')[0]
     return ""
 
+def get_client_xuehai_user_id(request: Request) -> str:
+    """
+    Get client xuehai user id
+    """
+    if "Xuehai-ID" in request.headers:
+        return request.headers["Xuehai-ID"]
+    return ""
 
 def binding_user_credentials(request: Request) -> dict:
     """
@@ -33,5 +40,6 @@ def binding_user_credentials(request: Request) -> dict:
         raise HTTPException(status_code=403, detail="Blocked user")
     return {
         "clarity_id": get_client_clarity_user_id(request),
+        "xuehai_id": get_client_xuehai_user_id(request),
         "ip": get_client_ip(request),
     }
