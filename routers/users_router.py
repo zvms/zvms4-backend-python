@@ -49,7 +49,7 @@ async def auth_user(
         meta["clarity_id"],
         f"""User {await get_user_name(id)} is logging in""",
         meta["ip"],
-        meta["xuehai_id"]
+        meta["xuehai_id"],
         datetime.timestamp(datetime.now()),
     )
 
