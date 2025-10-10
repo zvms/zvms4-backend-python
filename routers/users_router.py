@@ -120,13 +120,13 @@ async def delete_user(
     )
     await log.insert_log()
     # Remove all activity records of the user
-    metadata = await read_user_activity(
-        target, page=-1, user=user, query="", perpage=1000
-    )
-    for activity in metadata["data"]:
-        await user_activity_signoff(
-            str(activity["_id"]), uid=target, user=user, log=log
-        )
+    # metadata = await read_user_activity(
+    #     target, page=-1, user=user, query="", perpage=1000
+    # )
+    # for activity in metadata["data"]:
+    #     await user_activity_signoff(
+    #         str(activity["_id"]), uid=target, user=user, log=log
+    #     )
     await db.zvms.users.delete_one({"_id": validate_object_id(target)})
     return {"status": "ok", "code": 200}
 
