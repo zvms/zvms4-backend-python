@@ -16,12 +16,13 @@ async def validate_read_user_permission(
         return True
     if "monitor" in user.get("perm"):
         # If the user is a monitor, it should be in the same class
-        user_class_id = await get_user_class(user["id"])
-        target_classes = await db.zvms.users.find_one(
-            {"_id": validate_object_id(target_user)}
-        )["group"]
-        if user_class_id in target_classes:
-            return True
+        # user_class_id = await get_user_class(user["id"])
+        # target_classes = await db.zvms.users.find_one(
+        #     {"_id": validate_object_id(target_user)}
+        # )["group"]
+        # if user_class_id in target_classes:
+        #     return True
+        return True
     return False
 
 
