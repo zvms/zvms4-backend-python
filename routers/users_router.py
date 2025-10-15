@@ -43,6 +43,18 @@ async def auth_user(
     mode = auth.mode
     credential = auth.credential
 
+    if mode is None:
+        mode = "long"
+
+    if string_to_option_object_id(id) is None:
+        users = await db.zvms.users.find({"id": id}).to_list(None)
+        if len(users) != 1:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found",
+            )
+        id = str(users[0]["_id"])
+
     log = ZVMSLog(
         str(request.url),
         auth.id,
@@ -52,18 +64,6 @@ async def auth_user(
         meta["xuehai_id"],
         datetime.timestamp(datetime.now()),
     )
-
-    if mode is None:
-        mode = "long"
-
-    if string_to_option_object_id(id) is None:
-        users = await db.zvms.users.find({"id": id}).to_list(None)
-        if len(users) != 1:
-            raise HTTPException(
-                status_code=404,
-                detail="The id of the user is not found, or there are multiple users with the same id.",
-            )
-        id = str(users[0]["_id"])
 
     result = await validate_by_cert(id, credential, mode)
 
