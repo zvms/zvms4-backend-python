@@ -57,7 +57,7 @@ async def auth_user(
 
     log = ZVMSLog(
         str(request.url),
-        auth.id,
+        id,
         meta["clarity_id"],
         f"""User {await get_user_name(id)} is logging in""",
         meta["ip"],
