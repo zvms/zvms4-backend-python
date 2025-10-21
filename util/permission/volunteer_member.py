@@ -12,16 +12,6 @@ async def validate_create_permission(
     if "admin" in user.get("perm") or "volunteer" in user.get("perm"):
         return True
 
-    if "monitor" in user.get("perm"):
-        # If the user is a monitor, it should be in the same class
-        user_class_id = await get_user_class(user["id"])
-        if user_class_id in target_user.group:
-            return True
-
-    # If the user is the appointee, it's allowed to add member, but need to adjust the activity status to pending
-    if user["id"] == target_activity.appointee:
-        return "partial"
-
     return False
 
 
