@@ -3,7 +3,7 @@ anyio==4.2.0
 bcrypt==4.1.2
 certifi==2024.7.4
 charset-normalizer==3.3.2
-click==8.1.7
+click==8.3.0
 dnspython==2.6.1
 docopt==0.6.2
 ecdsa==0.19.1
