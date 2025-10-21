@@ -24,7 +24,7 @@ python-jose==3.4.0
 python-multipart==0.0.20
 PyYAML==6.0.3
 requests==2.32.4
-rsa==4.9
+rsa==4.9.1
 setuptools==78.1.1
 six==1.16.0
 sniffio==1.3.1
