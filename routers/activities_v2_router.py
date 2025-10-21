@@ -345,7 +345,7 @@ async def add_activity_member_v2(
     result = await db.zvms_new.get_collection("activity_members").insert_one(member)
     
     log.with_text(
-        f'User {await get_user_name(user["id"])} added member {target_user.name} to activity {target_activity.name} at {datetime.now().isoformat()}. The ID of the activity is {activity_id}.'
+        f'User {await get_user_name(user["id"])} added member {target_user.name} to activity {target_activity.name} at {datetime.now().isoformat()}.'
     )
     await log.insert_log()
 
@@ -409,7 +409,7 @@ async def modify_activity_status_v2(
 
     target_activity = Activity.model_validate(target_activity, strict=False)
 
-    if target_activity.status != "pending":
+    if target_activity.status != "pending" and "admin" not in user.get("perm"):
         raise HTTPException(
             status_code=400,
             detail="Activity status can only be modified from pending to effective or refused",

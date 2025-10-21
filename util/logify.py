@@ -36,7 +36,8 @@ def binding_user_credentials(request: Request) -> dict:
     Get user credentials
     """
     clarity_id = get_client_clarity_user_id(request)
-    if is_blocked(clarity_id):
+    xuehai_id = get_client_xuehai_user_id(request)
+    if is_blocked(clarity_id) or is_blocked(xuehai_id):
         raise HTTPException(status_code=403, detail="Blocked user")
     return {
         "clarity_id": get_client_clarity_user_id(request),
