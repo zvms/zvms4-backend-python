@@ -21,7 +21,7 @@ PyJWT==2.8.0
 pymongo==4.6.3
 python-dotenv==1.0.1
 python-jose==3.4.0
-python-multipart==0.0.19
+python-multipart==0.0.20
 PyYAML==6.0.3
 requests==2.32.4
 rsa==4.9
