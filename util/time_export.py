@@ -5,8 +5,8 @@ import pandas as pd
 import tempfile
 from tqdm import tqdm
 
-from util.calculate import calculate_time
-from util.get_class import get_classname, get_user_classname
+from util.calculate import calculate_user_time
+from util.get_class import get_classname
 
 
 def json2dataframe(data: list[dict]):
@@ -64,14 +64,8 @@ async def calculate(
 ):
     result = []
     for user in tqdm(users):
-        time = await calculate_time(
+        time = await calculate_user_time(
             str(user["_id"]),
-            normal_activities,
-            special_activities,
-            prize_activities,
-            trophies,
-            prize_full,
-            discount,
         )
         classname = await get_classname(user, groups)
         if classname is None:

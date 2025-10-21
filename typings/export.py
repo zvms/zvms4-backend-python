@@ -1,5 +1,8 @@
+import uuid
+from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -10,27 +13,52 @@ class ExportStatus(str, Enum):
     failed = "failed"
 
 
-class ExportFormat(str, Enum):
-    json = "json"
+class ExportFormat(Enum):
     csv = "csv"
-    xlsx = "xlsx"
+    excel = "excel"
+    json = "json"
+    latex = "latex"
+    html = "html"
+
+    def suffix(self):
+        if self == ExportFormat.excel:
+            return "xlsx"
+        elif self == ExportFormat.latex:
+            return "tex"
+        return self.value
+
+    def mime(self):
+        if self == ExportFormat.excel:
+            return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif self == ExportFormat.csv:
+            return "text/csv"
+        elif self == ExportFormat.json:
+            return "application/json"
+        elif self == ExportFormat.latex:
+            return "application/x-latex"
+        elif self == ExportFormat.html:
+            return "text/html"
 
 
-class Export(BaseModel):
-    collection: str  # `time`, `trophies`, `activities`, `notifications`, `users`, `groups`, etc.
-    format: ExportFormat  # `json`, `csv`, `xlsx`, etc.
-    start: str  # ISO 8601 date
-    end: str  # ISO 8601 date
-    filters: Optional[dict[str, str]]  # { "key": "value" }
-    sort: str
-    limit: int
-    offset: int
+class ExportVariant(Enum):
+    users = "users"
+    activities = "activities"
+    time = "time"
+    groups = "groups"
+    logs = "logs"
 
 
-class ExportResponse(BaseModel):
-    id: str
+class ExportTask(BaseModel):
+    id: uuid.UUID  # UUID
     status: ExportStatus
-    url: Optional[str]
-    data: Any
     format: ExportFormat
-    error: Optional[str]
+    variant: ExportVariant
+    export_start: Optional[datetime]
+    export_end: Optional[datetime]
+    task_start: datetime
+    task_end: Optional[datetime]
+    percentage: float = 0
+    errmsg: str = ""
+    result: Optional[list[dict]]
+    allow_cache: bool = True
+    include_description: bool = False

@@ -1,11 +1,25 @@
+import re
+import tempfile
+from io import BytesIO
+from typing import Optional
+import pandas as pd
+from fastapi.responses import FileResponse
+from typings.export import ExportFormat
 from typings.group import Group
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from database import db
 from pydantic import BaseModel
+
+from util.calculate import calculate_user_time
+from util.cert import check_password
 from util.get_class import get_activities_related_to_user
 
-from utils import compulsory_temporary_token, get_current_user, validate_object_id
+from util.object_id import (
+    compulsory_temporary_token,
+    get_current_user,
+    validate_object_id,
+)
 
 router = APIRouter()
 
@@ -16,7 +30,7 @@ async def create_group(payload: Group, user=Depends(get_current_user)):
     Create a user group
     """
 
-    if not "admin" in user["per"]:
+    if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     group = payload.model_dump()
@@ -34,10 +48,9 @@ async def create_group(payload: Group, user=Depends(get_current_user)):
 
 @router.get("")
 async def get_groups(
-    page: int = 1,
-    perpage: int = 10,
-    type="all",
-    search="",
+    page: int = Query(1, ge=-1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    search: str = Query("", description="Search term for group names"),
     user=Depends(get_current_user),
 ):
     """
@@ -47,15 +60,6 @@ async def get_groups(
     if len(user["per"]) == 0:
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    if type == "all":
-        target = ["permission", "class"]
-    elif type == "permission":
-        target = ["permission"]
-    elif type == "class":
-        target = ["class"]
-    else:
-        raise HTTPException(status_code=400, detail="Invalid type")
-
     count = await db.zvms.groups.count_documents(
         {"name": {"$regex": search, "$options": "i"}}
     )
@@ -63,7 +67,6 @@ async def get_groups(
     pipeline = [
         {
             "$match": {
-                "type": {"$in": target},
                 "name": {"$regex": search, "$options": "i"},
             },
         },
@@ -118,7 +121,7 @@ async def update_group_name(
     Update group name
     """
 
-    if not "admin" in user["per"]:
+    if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     await db.zvms.groups.update_one(
@@ -131,17 +134,37 @@ async def update_group_name(
     }
 
 
-@router.get("/{group_id}/activity")
+@router.get("/{group_id}/activities")
 async def get_class_activities(
     group_id: str,
-    page: int = 1,
-    perpage: int = 10,
-    query: str = "",
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    query: str = Query("", description="Search query for activities"),
     user=Depends(get_current_user),
 ):
     """
     Get activities related to a group
     """
+    if query != "" and "admin" not in user["per"]:
+        query = re.escape(query)
+
+    same_class = False
+    if "secretary" in user["per"]:
+        target = await db.zvms.users.find_one({"_id": ObjectId(user["id"])})
+        if target is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        classid = target["group"]
+        if classid == group_id:
+            same_class = True
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if (
+        "admin" not in user["per"]
+        and "auditor" not in user["per"]
+        and "department" not in user["per"]
+        and ("secretary" not in user["per"] and not same_class)
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
     result, count = await get_activities_related_to_user(
         user["id"], page, perpage, query, group_id
     )
@@ -156,9 +179,10 @@ async def get_class_activities(
 @router.get("/{group_id}/user")
 async def get_users_in_class(
     group_id: str,
-    page: int = 1,
-    perpage: int = 10,
-    search: str = "",
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    search: str = Query("", description="Search term for user names"),
+    pwdm: bool = Query(False, description="Include password mode information"),
     user=Depends(get_current_user),
 ):
     """
@@ -176,9 +200,9 @@ async def get_users_in_class(
         raise HTTPException(status_code=404, detail="User not found")
     if (
         "admin" not in user["per"]
-        and not "auditor" in user["per"]
-        and not "department" in user["per"]
-        and (not "secretary" in user["per"] and not same_class)
+        and "auditor" not in user["per"]
+        and "department" not in user["per"]
+        and ("secretary" not in user["per"] and not same_class)
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
     count = await db.zvms.users.count_documents(
@@ -193,7 +217,93 @@ async def get_users_in_class(
     result = await db.zvms.users.aggregate(pipeline).to_list(None)
     for user in result:
         user["_id"] = str(user["_id"])
+        if pwdm:
+            user["password"] = not check_password(user["id"], user["password"])
+        else:
+            user["password"] = None
     return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
+
+
+@router.get("/{group_id}/time")
+async def get_user_times_in_class(
+    group_id: str,
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    perpage: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    exceeding: bool = Query(True, description="Include exceeding time calculations"),
+    shortage: bool = Query(False, description="Include shortage calculations"),
+    start: Optional[str] = Query(None, description="Start date filter"),
+    end: Optional[str] = Query(None, description="End date filter"),
+    search: str = Query("", description="Search term for user names"),
+    allow_cache: bool = Query(True, description="Allow cached time calculations"),
+    user=Depends(get_current_user),
+):
+    """
+    Get users in a class
+    """
+    same_class = False
+    if "secretary" in user["per"]:
+        target = await db.zvms.users.find_one({"_id": ObjectId(user["id"])})
+        if target is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        classid = target["group"]
+        if classid == group_id:
+            same_class = True
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if (
+        "admin" not in user["per"]
+        and "auditor" not in user["per"]
+        and "department" not in user["per"]
+        and ("secretary" not in user["per"] and not same_class)
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    count = await db.zvms.users.count_documents(
+        {"group": group_id, "name": {"$regex": search, "$options": "i"}}
+    )
+    pipeline = [
+        {"$match": {"group": group_id, "name": {"$regex": search, "$options": "i"}}},
+        {"$sort": {"id": 1}},
+        {"$skip": (page - 1) * perpage},
+        {"$limit": perpage},
+    ]
+    result = await db.zvms.users.aggregate(pipeline).to_list(None)
+    time = []
+    for user in result:
+        user_time = await calculate_user_time(
+            str(user["_id"]), start, end, allow_cache=allow_cache
+        )
+        if exceeding or shortage:
+            more_on_campus = min(
+                round(max(user_time["off-campus"] - 15, 1) / 2, 0), 6.0
+            )
+            more_off_campus = min(
+                round(max(user_time["on-campus"] - 25, 1) / 3, 0), 6.0
+            )
+            user_time["on-campus"] += more_on_campus
+            user_time["off-campus"] += more_off_campus
+        if shortage:
+            user_time["on-campus"] = max(25 - user_time["on-campus"], 0)
+            user_time["off-campus"] = max(15 - user_time["off-campus"], 0)
+            user_time["social-practice"] = max(18 - user_time["social-practice"], 0)
+        group = await db.zvms.groups.find_one(
+            {
+                "_id": {"$in": list(map(lambda x: ObjectId(x), user["group"]))},
+                "type": "class",
+            }
+        )
+        if group is None:
+            continue
+        doc = {
+            "_id": str(user["_id"]),
+            "name": user["name"],
+            "id": str(user["id"]),
+            "group": group["name"],
+            "on-campus": user_time["on-campus"],
+            "off-campus": user_time["off-campus"],
+            "social-practice": user_time["social-practice"],
+        }
+        time.append(doc)
+    return {"status": "ok", "code": 200, "data": time, "metadata": {"size": count}}
 
 
 class PutGroupDescription(BaseModel):
@@ -208,7 +318,7 @@ async def update_group_description(
     Update group description
     """
 
-    if not "admin" in user["per"]:
+    if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     await db.zvms.groups.update_one(
@@ -227,7 +337,7 @@ async def delete_group(group_id: str, user=Depends(compulsory_temporary_token)):
     Remove group
     """
 
-    if not "admin" in user["per"]:
+    if "admin" not in user["per"]:
         raise HTTPException(status_code=403, detail="Permission denied")
 
     await db.zvms.groups.delete_one({"_id": ObjectId(group_id)})
@@ -236,3 +346,62 @@ async def delete_group(group_id: str, user=Depends(compulsory_temporary_token)):
         "status": "ok",
         "code": 200,
     }
+
+
+@router.get("/{group_id}/template")
+async def get_group_template(
+    group_id: str, export_format: ExportFormat, user=Depends(get_current_user)
+):
+    same_class = False
+    if "secretary" in user["per"]:
+        target = await db.zvms.users.find_one({"_id": ObjectId(user["id"])})
+        if target is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        classid = target["group"]
+        if classid == group_id:
+            same_class = True
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if (
+        "admin" not in user["per"]
+        and "auditor" not in user["per"]
+        and "department" not in user["per"]
+        and ("secretary" not in user["per"] and not same_class)
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    db_users = await db.zvms.users.find({"group": group_id}).to_list(None)
+
+    group_name = (await db.zvms.groups.find_one({"_id": ObjectId(group_id)}))["name"]
+
+    users = []
+
+    for user in db_users:
+        users.append(
+            {
+                "_id": str(user["_id"]),
+                "ID": user["id"],
+                "Name": user["name"],
+                "Class": group_name,
+                "On Campus": None,
+                "Off Campus": None,
+                "Social Practice": None,
+            }
+        )
+
+    table = pd.DataFrame(users).sort_values("ID")
+
+    buffer = BytesIO()
+    with tempfile.NamedTemporaryFile(
+        suffix=f".{export_format.suffix()}", delete=False
+    ) as tmp:
+        if export_format == ExportFormat.excel:
+            table.to_excel(tmp.name, index=False)
+        elif export_format == ExportFormat.csv:
+            table.to_csv(tmp.name, index=False)
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+        tmp.seek(0)
+        buffer.write(tmp.read())
+
+    return FileResponse(tmp.name, media_type=export_format.mime())
