@@ -1,7 +1,7 @@
 from typing import Optional
 from pydantic import BaseModel, Field
-from bson import ObjectId
 from enum import Enum
+from util.user import get_user_name
 
 
 class ActivityType(str, Enum):
@@ -25,35 +25,18 @@ class ActivityMode(str, Enum):
     social_practice = "social-practice"
 
 
-class ActivityMemberHistory(BaseModel):
-    impression: str
-    duration: float
-    time: str  # ISO 8601
-    actioner: str
-    action: MemberActivityStatus
-
-
 class ActivityMember(BaseModel):
-    id: str = Field(..., alias='_id')
+    id: str = Field(..., alias="_id")
     status: MemberActivityStatus
-    impression: str
     mode: ActivityMode
     duration: float
-    history: list[ActivityMemberHistory]
-    images: list[str]
 
-
-class ClassRegistration(BaseModel):
-    classid: int
-    max: int
-    min: int | None = None
+    async def log(self):
+        return f"User {await get_user_name(self.id)} joined activity with mode {self.mode} and duration {self.duration}."
 
 
 class Registration(BaseModel):
-    deadline: str  # ISO 8601
-    place: str
-    duration: float
-    classes: list[ClassRegistration]
+    place: Optional[str | None] = None
 
 
 class ActivityStatus(str, Enum):
@@ -72,9 +55,6 @@ class SpecialActivityClassify(str, Enum):
 
 class Special(BaseModel):
     classify: SpecialActivityClassify
-    prize: str | None = None
-    origin: str | None = None
-    reason: str | None = None
 
 
 class Activity(BaseModel):
@@ -89,5 +69,11 @@ class Activity(BaseModel):
     updatedAt: str  # ISO 8601
     creator: str
     status: ActivityStatus
-    url: Optional[str | None] = None
     special: Optional[Special | None] = None
+    approver: str
+
+    async def log(self, user: str = ""):
+        template = f"""User {await get_user_name(user)} created activity {self.name} with description {self.description} at {self.createdAt} (ID: $PLACEHOLDER). It involves users:"""
+        for member in self.members:
+            template += await member.log() + "\n"
+        return template

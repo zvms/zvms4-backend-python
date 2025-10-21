@@ -1,5 +1,5 @@
+from dataclasses import field
 from enum import Enum
-from bson import ObjectId
 from pydantic import BaseModel
 
 
@@ -13,9 +13,7 @@ class UserPosition(str, Enum):
     student = "student"
     secretary = "secretary"
     department = "department"
-    auditor = "auditor"
     admin = "admin"
-    system = "system"
 
 
 class UserLogin(BaseModel):
@@ -23,12 +21,18 @@ class UserLogin(BaseModel):
     credential: str
 
 
+class UserEligibility(Enum):
+    Rating = "rating"
+
+
 class User(BaseModel):
     _id: str
-    id: int
+    id: str
     name: str
     sex: UserSex
     group: list[str]
+    past: list[str]
+    eligibility: list[UserEligibility] = field(default_factory=list)
 
 
 class UserActivityTimeSums(BaseModel):

@@ -3,9 +3,10 @@ from fastapi import Response
 from fastapi.responses import StreamingResponse
 import pandas as pd
 import tempfile
+from tqdm import tqdm
 
-from util.calculate import calculate_time
-from util.get_class import get_classname, get_user_classname
+from util.calculate import calculate_user_time
+from util.get_class import get_classname
 
 
 def json2dataframe(data: list[dict]):
@@ -40,7 +41,6 @@ def json2xlsx(data: list[dict]):
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as temp_file:
         with pd.ExcelWriter(temp_file.name, engine="openpyxl") as writer:
             df.to_excel(writer, index=False)
-    print(temp_file.name)
     with open(temp_file.name, "rb") as file:
         buffer = file.read()
     content_stream = BytesIO(buffer)
@@ -63,17 +63,10 @@ async def calculate(
     groups: list[dict],
 ):
     result = []
-    for user in users:
-        time = await calculate_time(
+    for user in tqdm(users):
+        time = await calculate_user_time(
             str(user["_id"]),
-            normal_activities,
-            special_activities,
-            prize_activities,
-            trophies,
-            prize_full,
-            discount,
         )
-        print(str(user["_id"]), user["id"], time)
         classname = await get_classname(user, groups)
         if classname is None:
             continue

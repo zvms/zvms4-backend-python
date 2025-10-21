@@ -40,7 +40,5 @@ async def is_in_a_same_class(user: str, another_user: str):
     ).to_list(1)
 
     if user_group and another_group:
-        if user_group[0]["_id"] == another_group[0]["_id"]:
-            return True
-        else:
-            return False
+        return user_group[0]["_id"] == another_group[0]["_id"]
+    return None

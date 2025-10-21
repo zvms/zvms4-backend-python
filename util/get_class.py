@@ -3,9 +3,7 @@ from database import db
 from utils import validate_object_id
 
 
-async def get_activities_related_to_user(
-    user_oid: str, page: int = -1, perpage: int = 10, query: str = ""
-):
+async def get_user_class(user_oid: str) -> str:
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -28,7 +26,16 @@ async def get_activities_related_to_user(
     if not class_id:
         raise HTTPException(status_code=404, detail="User not in any class")
 
-    users = await db.zvms.users.find({"group": str(class_id)}).to_list(None)
+    return class_id
+
+
+async def get_activities_related_to_user(
+    user_oid: str, page: int = -1, perpage: int = 10, query: str = "", target: str = ""
+):
+    if not target:
+        target = await get_user_class(user_oid)
+
+    users = await db.zvms.users.find({"group": str(target)}).to_list(None)
 
     count = await db.zvms.activities.count_documents(
         {
@@ -37,34 +44,50 @@ async def get_activities_related_to_user(
         }
     )
 
-
     pipeline = [
-            {
-                "$match": {
-                    "members._id": {"$in": [str(user["_id"]) for user in users]},
-                    "name": {"$regex": query, "$options": "i"},
-                }
-            },
-            {
-                "$project": {
-                    "name": True,
-                    "members": {
-                        "$filter": {
-                            "input": "$members",
-                            "as": "member",
-                            "cond": {
-                                "$in": ["$$member._id", [str(user["_id"]) for user in users]]
-                            },
-                        }
-                    },
-                    "type": True,
-                }
-            },
-            {"$sort": {"_id": -1}},
-            {"$skip": 0 if page == -1 else (page - 1) * perpage},
-            {"$limit": 0 if page == -1 else perpage},
-        ]
-
+        {
+            "$match": {
+                "members._id": {"$in": [str(user["_id"]) for user in users]},
+                "name": {"$regex": query, "$options": "i"},
+            }
+        },
+        {
+            "$project": {
+                "name": True,
+                "members": {
+                    "$filter": {
+                        "input": "$members",
+                        "as": "member",
+                        "cond": {
+                            "$in": [
+                                "$$member._id",
+                                [str(user["_id"]) for user in users],
+                            ]
+                        },
+                    }
+                },
+                "status": True,
+                "date": True,
+                "type": True,
+                "special": True,
+            }
+        },
+        {
+            "$project": {
+                "name": True,
+                "status": True,
+                "date": True,
+                "type": True,
+                "special": True,
+                "members._id": True,
+                "members.status": True,
+                "members.mode": True,
+            }
+        },
+        {"$sort": {"_id": -1}},
+        {"$skip": 0 if page == -1 else (page - 1) * perpage},
+        {"$limit": 0 if page == -1 else perpage},
+    ]
 
     activities = await db.zvms.activities.aggregate(pipeline).to_list(None)
 

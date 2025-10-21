@@ -1,7 +1,6 @@
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from enum import Enum
-from bson import ObjectId
 
 
 class GroupType(str, Enum):
@@ -17,7 +16,7 @@ class UserPosition(str, Enum):
     auditor = "auditor"
     admin = "admin"
     system = "system"
-
+    inspector = "inspector"
 
 
 class Group(BaseModel):

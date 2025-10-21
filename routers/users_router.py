@@ -1,29 +1,30 @@
-import time
-from fastapi import UploadFile
-from fastapi import APIRouter, HTTPException, Depends, Form, Request
-from typing import List
-from fastapi.responses import StreamingResponse
-
+import re
+from datetime import datetime
+from typing import Optional, Any
+from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from util import image_process, image_storage
-from util.calculate import calculate_time
-from util.cases import kebab_case_to_camel_case
-from utils import (
+from bcrypt import hashpw, gensalt
+from routers.activities_router import user_activity_signoff
+from typings.log import inject_log, ZVMSLog
+from typings.user import User
+from util.calculate import calculate_user_time
+from util.group import is_in_a_same_class
+from util.logify import binding_user_credentials
+from util.object_id import (
     compulsory_temporary_token,
     get_current_user,
-    timestamp_change,
     validate_object_id,
-    get_img_token,
-    randomString,
+    string_to_option_object_id,
+    optional_current_user,
 )
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
 from database import db
-from bson import ObjectId
-import settings
 from util.cert import get_hashed_password_by_cert, validate_by_cert
-import os
-import config
+from util.user import get_user_name
+from util.validation import (
+    validate_number,
+    validate_student_name,
+)
 
 router = APIRouter()
 
@@ -35,7 +36,9 @@ class AuthUser(BaseModel):
 
 
 @router.post("/auth")
-async def auth_user(auth: AuthUser):
+async def auth_user(
+    auth: AuthUser, request: Request, meta=Depends(binding_user_credentials)
+):
     id = auth.id
     mode = auth.mode
     credential = auth.credential
@@ -43,12 +46,89 @@ async def auth_user(auth: AuthUser):
     if mode is None:
         mode = "long"
 
+    if string_to_option_object_id(id) is None:
+        users = await db.zvms.users.find({"id": id}).to_list(None)
+        if len(users) != 1:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found",
+            )
+        id = str(users[0]["_id"])
+
+    log = ZVMSLog(
+        str(request.url),
+        id,
+        meta["clarity_id"],
+        f"""User {await get_user_name(id)} is logging in""",
+        meta["ip"],
+        meta["xuehai_id"],
+        datetime.timestamp(datetime.now()),
+    )
+
     result = await validate_by_cert(id, credential, mode)
+
+    await log.insert_log()
 
     return {
         "token": result,
         "_id": id,
     }
+
+
+@router.post("")
+async def create_user(
+    target_user: User,
+    actioner=Depends(compulsory_temporary_token),
+    log=Depends(inject_log),
+):
+    # Check user's permission
+    if "admin" not in actioner["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    document = target_user.model_dump()
+
+    id = str(document["id"])
+    document["id"] = id
+    document["password"] = hashpw(id.encode("utf-8"), gensalt()).decode("utf-8")
+
+    if not validate_number(document["id"])[0]:
+        raise HTTPException(status_code=400, detail=validate_number(document["id"])[1])
+    if not validate_student_name(document["name"])[0]:
+        raise HTTPException(
+            status_code=400, detail=validate_student_name(document["name"])[1]
+        )
+
+    log.with_text(
+        f"""User {target_user.name} is created by {await get_user_name(actioner['id'])}"""
+    )
+    await log.insert_log()
+
+    result = await db.zvms.users.insert_one(document)
+
+    return {"status": "ok", "code": 201, "data": str(result.inserted_id)}
+
+
+@router.delete("/{target}")
+async def delete_user(
+    target: str, user=Depends(compulsory_temporary_token), log=Depends(inject_log)
+):
+    if target == user["id"]:
+        raise HTTPException(status_code=400, detail="You can't delete yourself.")
+    validate_object_id(target)
+    log.with_text(
+        f"""User {await get_user_name(target)} ({target}) is deleted by {await get_user_name(user['id'])}"""
+    )
+    await log.insert_log()
+    # Remove all activity records of the user
+    # metadata = await read_user_activity(
+    #     target, page=-1, user=user, query="", perpage=1000
+    # )
+    # for activity in metadata["data"]:
+    #     await user_activity_signoff(
+    #         str(activity["_id"]), uid=target, user=user, log=log
+    #     )
+    await db.zvms.users.delete_one({"_id": validate_object_id(target)})
+    return {"status": "ok", "code": 200}
 
 
 class PutPassword(BaseModel):
@@ -57,14 +137,39 @@ class PutPassword(BaseModel):
 
 @router.put("/{user_oid}/password")
 async def change_password(
-    user_oid: str, credential: PutPassword, user=Depends(compulsory_temporary_token)
+    user_oid: str,
+    credential: PutPassword,
+    user=Depends(compulsory_temporary_token),
+    log=Depends(inject_log),
 ):
-    print(user)
+    log.with_text(f"""User {await get_user_name(user_oid)}'s password is changed""")
+    await log.insert_log()
     # Validate user's permission
-    if "admin" not in user["per"] and user["id"] != user_oid:
+    secretary = "secretary" in user["per"] and (
+        is_in_a_same_class(user["id"], user_oid)
+    )
+    modification = user["id"] == user_oid and user["scope"] == "temporary_token"
+    if (
+        "admin" not in user["per"]
+        and (not modification)
+        and "department" not in user["per"]
+        and "auditor" not in user["per"]
+        and (not secretary)
+    ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
     password = await get_hashed_password_by_cert(credential.credential)
+
+    # Get origin user's permissions: if admin, should reject the request
+    forbid_groups = await db.zvms.groups.find(
+        {"permission": {"$in": ["admin", "system"]}}
+    ).to_list(None)
+    target = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
+    if target is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target["group"] in forbid_groups and user["id"] != str(target["_id"]):
+        raise HTTPException(status_code=403, detail="Permission denied")
 
     # Change user's password
     await db.zvms.users.update_one(
@@ -78,10 +183,37 @@ async def change_password(
 
 
 @router.get("")
-async def read_users(query: str):
+async def read_users(
+    query: str = "",
+    page: int = 1,
+    perpage: int = 5,
+    privilege: bool = False,
+    user: Optional[str] = Depends(optional_current_user),
+):
     """
     Query users
     """
+    if privilege:
+        groups = await db.zvms["groups"].find(
+            {"permissions": {"$in": ["admin", "department"]}}
+        )
+        selected = []
+        for group in groups:
+            selected.append(str(group["_id"]))
+    count = await db.zvms.users.count_documents(
+        {
+            "$or": [
+                {"name": {"$regex": query, "$options": "i"}},
+                {"id": {"$regex": query, "$options": "i"}},
+                {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}},
+            ]
+            if user is not None
+            else [
+                # should not search if not login.
+                {"id": query}
+            ],
+        }
+    )
     result = (
         await db.zvms["users"]
         .find(
@@ -89,7 +221,13 @@ async def read_users(query: str):
                 "$or": [
                     {"name": {"$regex": query, "$options": "i"}},
                     {"id": {"$regex": query, "$options": "i"}},
+                    {"past": {"$elemMatch": {"$regex": query, "$options": "i"}}},
                 ]
+                if user is not None
+                else [
+                    # should not search if not login.
+                    {"id": query}
+                ],
             },
             {
                 "name": True,
@@ -98,13 +236,15 @@ async def read_users(query: str):
             },
         )
         .sort({"id": 1})
-        .to_list(5)
+        .skip(0 if page == -1 else (page - 1) * perpage)
+        .limit(perpage if page == -1 else perpage)
+        .to_list(0 if page == -1 else perpage)
     )
 
     for user in result:
         user["_id"] = str(user["_id"])
 
-    return {"status": "ok", "code": 200, "data": result}
+    return {"status": "ok", "code": 200, "data": result, "metadata": {"size": count}}
 
 
 @router.get("/{user_oid}")
@@ -112,12 +252,11 @@ async def read_user(user_oid: str):
     """
     Return user's information
     """
-    # # 验证用户权限, 仅管理员可查看他人信息
-    # if user["permission"] < 16 and user["_id"] != validate_object_id(user_oid):
-    #     raise HTTPException(status_code=403, detail="Permission denied")
-
     # Read user's information
     user = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
 
     user["_id"] = str(user["_id"])
     del user["password"]
@@ -125,6 +264,65 @@ async def read_user(user_oid: str):
         "status": "ok",
         "code": 200,
         "data": user,
+    }
+
+
+class PutUser(BaseModel):
+    name: str
+    id: str
+    group: list[str]
+
+
+@router.put("/{user_oid}")
+async def update_user(
+    user_oid: str,
+    user_struct: PutUser,
+    user=Depends(compulsory_temporary_token),
+    log=Depends(inject_log),
+):
+    """
+    Update user's information
+    """
+    # Check user's permission
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    user_info = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
+    original_name = await get_user_name(user_oid)
+
+    if not validate_number(user_struct.id)[0]:
+        raise HTTPException(status_code=400, detail=validate_number(user_struct.id)[1])
+    if not validate_student_name(user_struct.name)[0]:
+        raise HTTPException(
+            status_code=400, detail=validate_student_name(user_struct.name)[1]
+        )
+
+    pasts = []
+
+    if user_info["id"] != user_struct.id:
+        pasts.append(user_info["id"])
+
+    # Update user's information
+    await db.zvms.users.update_one(
+        {"_id": validate_object_id(user_oid)},
+        {
+            "$set": {
+                "name": user_struct.name,
+                "id": user_struct.id,
+                "group": user_struct.group,
+            },
+            "$push": {"past": {"$each": pasts}},
+        },
+    )
+
+    log.with_text(
+        f"""User {original_name}'s data is updated to {user_struct.model_dump()}"""
+    )
+    await log.insert_log()
+
+    return {
+        "status": "ok",
+        "code": 200,
     }
 
 
@@ -156,10 +354,9 @@ async def remove_user_from_group(
     )
 
 
-@router.get("/{user_oid}/activity")
+@router.get("/{user_oid}/activities")
 async def read_user_activity(
     user_oid: str,
-    registration: bool = False,  # 是否返回报名的义工, parameters
     user=Depends(get_current_user),
     page: int = -1,
     perpage: int = 10,
@@ -170,33 +367,53 @@ async def read_user_activity(
     """
     # Check user's permission
 
-    if "admin" not in user["per"] and user["id"] != str(validate_object_id(user_oid)):
+    if (
+        "admin" not in user["per"]
+        and "department" not in user["per"]
+        and user["id"] != str(validate_object_id(user_oid))
+    ):
         raise HTTPException(status_code=403, detail="Permission denied")
+
+    if query != "" and "admin" not in user["per"]:
+        query = re.escape(query)
 
     count = await db.zvms.activities.count_documents(
         {"members._id": str(validate_object_id(user_oid))},
-        # {"name": {"$regex": query, "$options": "i"}},
+        # {"name": {"$regex": query}},
     )
     # Read user's activities
-    all_activities = (
-        await db.zvms.activities.find(
-            {
-                "members._id": str(validate_object_id(user_oid)),
+    pipeline = [
+        {
+            "$match": {
+                "members._id": user_oid,
                 "name": {"$regex": query, "$options": "i"},
-            },
-            {
+            }
+        },
+        {
+            "$project": {
                 "name": 1,
                 "date": 1,
                 "_id": 1,
                 "status": 1,
                 "type": 1,
                 "special": 1,
-                "members.$": 1,
-            },
-        )
-        .skip(0 if page == -1 else (page - 1) * perpage)
-        .limit(0 if page == -1 else perpage)
-        .to_list(None if page == -1 else perpage)
+                "members": {
+                    "$filter": {
+                        "input": "$members",
+                        "as": "member",
+                        "cond": {"$eq": ["$$member._id", user_oid]},
+                    }
+                },
+            }
+        },
+        {"$sort": {"_id": -1}},
+        {"$skip": 0 if page == -1 else (page - 1) * perpage},
+    ]
+    if page != -1:
+        pipeline.append({"$limit": perpage})
+
+    all_activities = await db.zvms.activities.aggregate(pipeline).to_list(
+        None if page == -1 else perpage
     )
 
     for activity in all_activities:
@@ -212,8 +429,20 @@ async def read_user_activity(
     }
 
 
+# Redirect
+@router.api_route("/{user_oid}/activity/{path:path}", methods=["GET"])
+async def redirect_activity(request: Request, user_oid: str, path: str):
+    new_url = request.url.replace(path="/api/users/" + user_oid + "/activities/" + path)
+    return RedirectResponse(url=new_url)
+
+
 @router.get("/{user_oid}/time")
-async def read_user_time(user_oid: str, user=Depends(get_current_user)):
+async def read_user_time(
+    user_oid: str,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    user=Depends(get_current_user),
+):
     """
     Return user's time
     """
@@ -225,7 +454,15 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
-    result = await calculate_time(user_oid)
+    if (start is not None and end is None) or (start is None and end is not None):
+        raise HTTPException(status_code=400, detail="Invalid query")
+
+    if start is not None and end is not None:
+        result = await calculate_user_time(
+            user_oid, datetime.fromisoformat(start), datetime.fromisoformat(end)
+        )
+    else:
+        result = await calculate_user_time(user_oid)
     return {
         "status": "ok",
         "code": 200,
@@ -233,10 +470,108 @@ async def read_user_time(user_oid: str, user=Depends(get_current_user)):
             "onCampus": result["on-campus"],
             "offCampus": result["off-campus"],
             "socialPractice": result["social-practice"],
-            "trophy": result["trophy"],
             "total": result["total"],
         },
     }
+
+
+@router.get("/{user_oid}/logs")
+async def read_logs(
+    user_oid: str,
+    page: int = -1,
+    perpage: int = 10,
+    query: str = "",
+    user=Depends(get_current_user),
+):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    query: dict[str, Any] = (
+        {"user": user_oid}
+        if query == ""
+        else {
+            "$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}, {"clarity": {"$regex": query}}],
+            "user": user_oid,
+        }
+    )
+
+    count = await db.zvms.logs.count_documents(query)
+
+    pipeline = [
+        {"$match": query},
+        {"$sort": {"timestamp": -1}},
+        {"$skip": 0 if page == -1 else (page - 1) * perpage},
+        {"$limit": perpage},
+    ]
+
+    logs = await db.zvms.logs.aggregate(pipeline).to_list(None)
+
+    for log in logs:
+        log["_id"] = str(log["_id"])
+
+    return {
+        "code": 200,
+        "status": "ok",
+        "data": logs,
+        "metadata": {
+            "size": count,
+        },
+    }
+
+
+@router.delete("/{user_oid}/past/{past_identity_idx}")
+async def delete_past(
+    user_oid: str,
+    past_identity_idx: str,
+    user=Depends(get_current_user),
+    log=Depends(inject_log),
+):
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    # Remove by index
+    name = (await db.zvms.users.find_one({"_id": validate_object_id(user_oid)}))["past"]
+    idx = int(past_identity_idx)
+    log.with_text(
+        f"""User {await get_user_name(user_oid)}'s past identity is deleted, {name[idx]}"""
+    )
+    if idx < 0 or idx >= len(name):
+        raise HTTPException(status_code=404, detail="Past identity not found.")
+    await db.zvms.users.update_one(
+        {"_id": validate_object_id(user_oid)}, {"$pull": {"past": name[idx]}}
+    )
+    await log.insert_log()
+    return {"code": 200, "status": "ok"}
+
+
+class PostPast(BaseModel):
+    past: str
+
+
+@router.post("/{user_oid}/past")
+async def add_past(
+    user_oid: str,
+    past: PostPast,
+    user=Depends(get_current_user),
+    log=Depends(inject_log),
+):
+    log.with_text(
+        f"""User {await get_user_name(user_oid)}'s past identity is added, {past.past}"""
+    )
+    if not validate_number(past.past)[0]:
+        raise HTTPException(status_code=400, detail="Invalid past identity.")
+    if "admin" not in user["per"]:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    if (
+        await db.zvms.users.count_documents(
+            {"$or": [{"id": past.past}, {"past": {"$elemMatch": {"$eq": past.past}}}]}
+        )
+    ) > 0:
+        raise HTTPException(status_code=409, detail="The past identity already exists.")
+    await db.zvms.users.update_one(
+        {"_id": validate_object_id(user_oid)}, {"$push": {"past": past.past}}
+    )
+    await log.insert_log()
+    return {"code": 200, "status": "ok"}
 
 
 @router.get("/{user_oid}/notification")
@@ -246,14 +581,13 @@ async def read_notifications(
     """
     Get Notifications
     """
-    # Get notification list
+    # Get a notification list
     count = await db.zvms.notifications.count_documents(
         {
             "$or": [
                 {"receivers": str(user_oid)},
                 {"global": True},
             ],
-            "expire": {"$gt": int(time.time())},
         }
     )
     notifications = (
@@ -262,7 +596,7 @@ async def read_notifications(
                 "$or": [
                     {"receivers": str(user_oid)},
                     {"global": True},
-                    {"publisher": str(user_oid)}
+                    {"publisher": str(user_oid)},
                 ],
             }
         )
@@ -284,30 +618,4 @@ async def read_notifications(
         "metadata": {
             "size": count,
         },
-    }
-
-
-@router.get("/{user_oid}/image")
-async def read_images(
-    user_oid: str,
-    user=Depends(get_current_user),
-    page: int = 1,
-    perpage: int = 10,
-):
-    if user["id"] != user_oid and "admin" not in user["per"]:
-        raise HTTPException(status_code=403, detail="Permission denied")
-    user = (
-        await db.zvms.images.find(
-            {
-                "uploader": user_oid,
-            }
-        )
-        .skip(0 if page == -1 else (page - 1) * perpage)
-        .limit(0 if page == -1 else perpage)
-        .to_list(None if page == -1 else perpage)
-    )
-    return {
-        "status": "ok",
-        "code": 200,
-        "data": user["images"],
     }
