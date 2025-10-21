@@ -10,7 +10,7 @@ ecdsa==0.19.1
 fastapi==0.119.1
 h11==0.16.0
 httptools==0.7.1
-idna==3.7
+idna==3.11
 motor==3.3.2
 pipreqs==0.4.13
 pyasn1==0.5.1
