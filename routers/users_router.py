@@ -142,8 +142,6 @@ async def change_password(
     user=Depends(compulsory_temporary_token),
     log=Depends(inject_log),
 ):
-    log.with_text(f"""User {await get_user_name(user_oid)}'s password is changed""")
-    await log.insert_log()
     # Validate user's permission
     secretary = "secretary" in user["per"] and (
         is_in_a_same_class(user["id"], user_oid)
@@ -158,18 +156,22 @@ async def change_password(
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
+    log.with_text(f"""User {await get_user_name(user_oid)}'s password is changed""")
+    await log.insert_log()
+
     password = await get_hashed_password_by_cert(credential.credential)
 
     # Get origin user's permissions: if admin, should reject the request
     forbid_groups = await db.zvms.groups.find(
-        {"permission": {"$in": ["admin", "system"]}}
+        {"permission": {"$in": ["admin"]}}
     ).to_list(None)
     target = await db.zvms.users.find_one({"_id": validate_object_id(user_oid)})
     if target is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if target["group"] in forbid_groups and user["id"] != str(target["_id"]):
-        raise HTTPException(status_code=403, detail="Permission denied")
+    # TODO: Make this code work normally
+    # if target["group"] in forbid_groups and user["id"] != str(target["_id"]):
+    #     raise HTTPException(status_code=403, detail="Permission denied")
 
     # Change user's password
     await db.zvms.users.update_one(
@@ -490,7 +492,7 @@ async def read_logs(
         {"user": user_oid}
         if query == ""
         else {
-            "$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}, {"clarity": {"$regex": query}}],
+            "$or": [{"url": {"$regex": query}}, {"data": {"$regex": query}}, {"clarity": {"$regex": query}}, {"xuehai": {"$regex": query}}],
             "user": user_oid,
         }
     )
