@@ -58,7 +58,7 @@ async def wash_data():
     """
     Run all data washing tasks.
     """
-    await regulate_titles()
-    await remove_activities_with_zero_participants()
+    # await regulate_titles()
+    # await remove_activities_with_zero_participants()
     # Add more data washing tasks here as needed
-    print("Data washing completed.")
+    # print("Data washing completed.")
