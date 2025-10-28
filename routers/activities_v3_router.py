@@ -47,7 +47,7 @@ async def add_activity_member_v3(
                 status_code=400, detail="Activity type and member mode do not match"
             )
         
-        existing: ActivityMember = await db.zvms_new.get_collection("activity_members").find_one(
+        existing: dict = await db.zvms_new.get_collection("activity_members").find_one(
             {
                 "member": str(member.member),
                 "activity": str(activity_id),
@@ -58,16 +58,16 @@ async def add_activity_member_v3(
         if existing:
 
             updated_data = {
-                "duration": existing.duration + member.duration,
+                "duration": existing["duration"] + member.duration,
                 "mode": member.mode,
             }
 
             result = await db.zvms_new.get_collection("activity_members").update_one(
-                {"_id": validate_object_id(existing._id)},
+                {"_id": validate_object_id(existing["_id"])},
                 {"$set": updated_data},
             )
 
-            results.append(str(existing._id))
+            results.append(str(existing["_id"]))
 
             continue
 
