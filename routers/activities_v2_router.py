@@ -43,12 +43,12 @@ async def create_activity_v2(
 
     activity.creator = str(user["id"])
 
-    activity = activity.model_dump()
+    activity_ = activity.model_dump()
 
-    result = await db.zvms_new.get_collection("activities").insert_one(activity)
+    result = await db.zvms_new.get_collection("activities").insert_one(activity_)
 
     log.with_text(
-        f'User {await get_user_name(user['id'])} (ID: {user['id']}) created activity {activity["name"]} at {datetime.now().isoformat()} (ID: {result.inserted_id}).'
+        f'User {await get_user_name(user['id'])} (ID: {user['id']}) created activity {activity_["name"]} at {datetime.now().isoformat()} (ID: {result.inserted_id}).'
     )
     await log.insert_log()
 
@@ -340,9 +340,9 @@ async def add_activity_member_v2(
             status_code=400, detail="User already in activity with same counting mode"
         )
 
-    member = member.model_dump()
+    member_ = member.model_dump()
 
-    result = await db.zvms_new.get_collection("activity_members").insert_one(member)
+    result = await db.zvms_new.get_collection("activity_members").insert_one(member_)
     
     log.with_text(
         f'User {await get_user_name(user["id"])} added member {target_user.name} to activity {target_activity.name} at {datetime.now().isoformat()}.'
