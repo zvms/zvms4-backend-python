@@ -30,7 +30,7 @@ scheduler = AsyncIOScheduler()
 sio = socketio.AsyncServer(async_mode="asgi")
 socket = socketio.ASGIApp(sio)
 
-app = FastAPI(default_response_class=JSONResponse)
+app = FastAPI(default_response_class=JSONResponse, docs_url=None)
 
 app.add_middleware(
     CORSMiddleware,
@@ -80,17 +80,6 @@ async def startup_event():
         second=0,
         timezone="Asia/Hong_Kong",
         id="daily_compute_time",
-    )
-
-    # Schedule compute_time to run daily at 00:00 HKT (UTC+8)
-    scheduler.add_job(
-        wash_data,
-        "cron",
-        hour=2,
-        minute=0,
-        second=0,
-        timezone="Asia/Hong_Kong",
-        id="daily_wash_data",
     )
 
     # Schedule compute_time to run daily at 00:00 HKT (UTC+8)
