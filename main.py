@@ -30,7 +30,7 @@ scheduler = AsyncIOScheduler()
 sio = socketio.AsyncServer(async_mode="asgi")
 socket = socketio.ASGIApp(sio)
 
-app = FastAPI(default_response_class=JSONResponse)
+app = FastAPI(default_response_class=JSONResponse, docs_url=None)
 
 app.add_middleware(
     CORSMiddleware,
