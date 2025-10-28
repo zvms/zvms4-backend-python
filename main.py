@@ -16,6 +16,7 @@ from routers import (
     activity_statistics_router,
     times_router,
     mcp_router,
+    activities_v3_router,
 )
 from database import close_mongo_connection, connect_to_mongo
 import socketio
@@ -24,7 +25,6 @@ from database import db
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
 from tasks.compute_time import compute_tasks, generate_reports
-from tasks.data_fix import wash_data
 
 scheduler = AsyncIOScheduler()
 sio = socketio.AsyncServer(async_mode="asgi")
@@ -35,6 +35,7 @@ app = FastAPI(default_response_class=JSONResponse, docs_url=None)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:4173",
         "http://localhost:5173",
         "https://v4.zvms.site",
         "https://v4-netlify.zvms.site",
@@ -129,6 +130,7 @@ app.include_router(
     activity_statistics_router.router, prefix="/api/v2/statistics/activities"
 )
 app.include_router(mcp_router.router, prefix="/api/v2/mcp")
+app.include_router(activities_v3_router.router, prefix="/api/v3/activities")
 
 
 @app.get("/api/")
