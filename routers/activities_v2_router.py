@@ -415,17 +415,26 @@ async def modify_activity_status_v2(
             detail="Activity status can only be modified from pending to effective or refused",
         )
 
+    if status.status == target_activity.status:
+        raise HTTPException(
+            status_code=400,
+            detail="Activity status is not changed",
+        )
+
     await volunteer.validate_check_permission(user, target_activity, strict=True)
+
+    update_content = {
+        "status": status.status,
+        "approver": str(user["id"]),
+        "updatedAt": datetime.now(),
+    }
+
+    if target_activity.status != "pending":
+        del update_content["approver"] # The activity is not being approved
 
     result = await db.zvms_new.get_collection("activities").update_one(
         {"_id": validate_object_id(activity_id)},
-        {
-            "$set": {
-                "status": status.status,
-                "approver": str(user["id"]),
-                "updatedAt": datetime.now(),
-            }
-        },
+        {"$set": update_content},
     )
 
     if result.modified_count == 0:
@@ -567,7 +576,7 @@ async def update_activity_info(
 
     result = await db.zvms_new.get_collection("activities").update_one(
         {"_id": validate_object_id(activity_id)},
-        {"$set": {"name": payload.name, "description": payload.description}},
+        {"$set": {"name": payload.name, "description": payload.description, "updatedAt": datetime.now()}},
     )
 
     if result.modified_count == 0:
