@@ -32,6 +32,8 @@ async def add_activity_member_v3(
 
     results = []
 
+    log_text = ''
+
     for member in members:    
         target_user = await db.zvms.get_collection("users").find_one(
             {"_id": validate_object_id(member.member)}
@@ -69,18 +71,34 @@ async def add_activity_member_v3(
 
             results.append(str(existing["_id"]))
 
+            log_text += f'User {await get_user_name(user["id"])} updated member {target_user.name} in activity {target_activity.name} at {datetime.now().isoformat()}.\n'
+
             continue
 
         member_ = member.model_dump()
 
         result = await db.zvms_new.get_collection("activity_members").insert_one(member_)
         
-        log.with_text(
-            f'User {await get_user_name(user["id"])} added member {target_user.name} to activity {target_activity.name} at {datetime.now().isoformat()}.'
-        )
-        await log.insert_log()
+        log_text += f'User {await get_user_name(user["id"])} added member {target_user.name} to activity {target_activity.name} at {datetime.now().isoformat()}.\n'
+
+        # await log.insert_log()
 
         results.append(str(result.inserted_id))
+
+    if len(log_text):
+        log.with_text(log_text[:-1])
+        await log.insert_log()
+    
+    result = await db.zvms_new.get_collection("activities").update_one(
+        {"_id": validate_object_id(activity_id)},
+        {
+            "$set": {
+                "status": "pending",
+                "updatedAt": datetime.now(),
+            }
+        },
+    )
+
 
     return {
         "result": results,
