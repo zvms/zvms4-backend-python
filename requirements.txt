@@ -37,7 +37,7 @@ watchfiles==1.1.1
 websockets==15.0.1
 wheel==0.45.1
 yarg==0.1.10
-pillow==12.0.0
+pillow==12.1.1
 pandas==2.3.3
 numpy==2.3.5
 python-socketio==5.15.0
