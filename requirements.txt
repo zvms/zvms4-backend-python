@@ -19,7 +19,7 @@ pydantic==2.12.5
 pydantic_core==2.41.5
 PyJWT==2.10.1
 pymongo==4.15.5
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 python-jose==3.5.0
 python-multipart==0.0.20
 PyYAML==6.0.3
