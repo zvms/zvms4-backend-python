@@ -1,4 +1,4 @@
-certifi==2025.11.12
+certifi==2026.7.22
 bcrypt==5.0.0
 annotated-types==0.7.0
 anyio==4.12.0
