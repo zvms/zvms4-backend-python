@@ -16,7 +16,7 @@ pipreqs==0.5.0
 pyasn1==0.6.1
 pycryptodome==3.23.0
 pydantic==2.12.5
-pydantic_core==2.41.5
+pydantic_core==2.50.4
 PyJWT==2.10.1
 pymongo==4.15.5
 python-dotenv==1.2.1
